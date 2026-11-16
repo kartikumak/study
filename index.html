@@ -1,0 +1,440 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#f7f6f2">
+<title>Same or Study</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+:root{--bg:#f7f6f2;--card:#fff;--ink:#17171a;--mut:#85858f;--line:rgba(20,20,30,.08);--soft:#f1f0ec;--acc:#17171a;--accink:#fff;--p0:#5e6ad2;--p1:#d9904f;--p2:#3f9e87;--ok:#3f9e87;--bad:#d4604f;--s0:#5e6ad2;--s1:#d9904f;--s2:#3f9e87;--s3:#b8678f;--s4:#6a9bc3;--s5:#b9b9c0;--sh:0 1px 2px rgba(20,20,30,.04),0 10px 28px -14px rgba(20,20,30,.14)}
+[data-theme=dark]{--bg:#0e0e11;--card:#17171b;--ink:#f2f2f4;--mut:#8b8b96;--line:rgba(255,255,255,.08);--soft:#1f1f24;--acc:#f2f2f4;--accink:#0e0e11;--sh:0 1px 2px rgba(0,0,0,.4),0 10px 28px -14px rgba(0,0,0,.7)}
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+body{margin:0;background:var(--bg);color:var(--ink);font:15px/1.45 Inter,-apple-system,"Segoe UI",Roboto,sans-serif;-webkit-font-smoothing:antialiased;font-variant-numeric:tabular-nums;transition:background .3s}
+#app{max-width:560px;margin:0 auto;padding:0 16px 110px;min-height:100vh}
+button,input,textarea{font:inherit;color:inherit}
+button{cursor:pointer}
+h1,h2,h3{margin:0;letter-spacing:-.02em}
+h1{font-size:30px;line-height:1.1}h2{font-size:20px}h3{font-size:13px;color:var(--mut);font-weight:500;letter-spacing:0}
+.top{display:flex;justify-content:space-between;align-items:center;padding:calc(env(safe-area-inset-top) + 18px) 2px 14px}
+.brand{font-size:11px;letter-spacing:.22em;font-weight:700}
+.rn{color:var(--mut);font-size:13px;display:flex;align-items:center;gap:6px;margin-top:2px}
+.dot{width:7px;height:7px;border-radius:50%;background:var(--mut);display:inline-block;opacity:.5}.dot.on{background:var(--ok);opacity:1}
+.hb{display:flex;gap:8px}
+.ib{width:38px;height:38px;border-radius:12px;border:1px solid var(--line);background:var(--card);display:grid;place-items:center}
+.ic{width:19px;height:19px;stroke:currentColor;fill:none;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}
+.card{background:var(--card);border:1px solid var(--line);border-radius:22px;padding:18px;margin-bottom:12px;box-shadow:var(--sh)}
+.anim .card,.anim .rcard{animation:up .5s cubic-bezier(.2,.8,.2,1) both}
+.anim .card:nth-child(2){animation-delay:.05s}.anim .card:nth-child(3){animation-delay:.1s}.anim .card:nth-child(4){animation-delay:.15s}
+@keyframes up{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:none}}
+.btn{height:52px;border-radius:16px;background:var(--acc);color:var(--accink);font-weight:600;border:0;width:100%;transition:transform .15s,opacity .2s}
+.btn:active{transform:scale(.98)}.btn:disabled{opacity:.35;cursor:default}
+.btn.ghost{background:transparent;color:var(--ink);border:1px solid var(--line)}
+.btn.sm{height:40px;border-radius:12px;font-size:14px;width:auto;padding:0 16px}
+.btn+.btn{margin-top:8px}
+.row{display:flex;align-items:center;gap:12px}.sp{flex:1}
+.big{font-size:44px;font-weight:700;letter-spacing:-.04em;line-height:1}
+.mut{color:var(--mut)}.sm{font-size:13px}
+.c0{--c:var(--p0)}.c1{--c:var(--p1)}.c2{--c:var(--p2)}
+.av{width:38px;height:38px;border-radius:12px;background:var(--c);color:#fff;display:grid;place-items:center;font-weight:600;flex:none}
+.pr{padding:10px 0;border-top:1px solid var(--line)}.pr:first-of-type{border:0}
+.pill{font-size:12px;padding:3px 9px;border-radius:99px;background:var(--soft);color:var(--mut);font-weight:500;white-space:nowrap}
+.pill.ok{background:color-mix(in srgb,var(--ok) 15%,transparent);color:var(--ok)}
+.pill.st{background:color-mix(in srgb,var(--p1) 16%,transparent);color:var(--p1)}
+.dots{display:flex;gap:6px;margin-top:14px}.dots i{flex:1;height:6px;border-radius:4px;background:var(--soft);transition:background .4s}.dots i.on{background:var(--ink)}
+.trio{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-bottom:12px}
+.trio .card{margin:0;padding:14px}.trio .v{font-size:22px;font-weight:700;letter-spacing:-.03em;margin-top:4px}
+.opts{display:grid;gap:8px}
+.opt{display:flex;align-items:center;gap:12px;text-align:left;padding:14px;border-radius:16px;background:var(--card);border:1px solid var(--line);font-weight:500;transition:.15s}
+.opt .n{width:26px;height:26px;border-radius:8px;background:var(--soft);display:grid;place-items:center;font-size:12px;color:var(--mut);flex:none}
+.opt.sel{border-color:var(--ink);box-shadow:0 0 0 1px var(--ink)}.opt.sel .n{background:var(--ink);color:var(--bg)}
+.opt:disabled:not(.sel){opacity:.45}
+.dock{position:sticky;bottom:90px;padding-top:12px}
+.rcard{display:flex;align-items:center;gap:12px;padding:14px;border-radius:16px;background:var(--soft);margin-bottom:8px;animation-delay:calc(var(--i)*140ms)}
+.rcard b{margin-left:auto;font-weight:600}
+.tag{display:inline-block;font-size:12px;font-weight:600;padding:4px 10px;border-radius:99px}
+.tag.ok{background:color-mix(in srgb,var(--ok) 16%,transparent);color:var(--ok)}.tag.bad{background:color-mix(in srgb,var(--bad) 16%,transparent);color:var(--bad)}
+.clock{font-size:64px;font-weight:700;letter-spacing:-.05em;text-align:center;line-height:1;margin:6px 0 14px}.clock.done{color:var(--ok)}
+.prog{height:6px;background:var(--soft);border-radius:4px;overflow:hidden}.prog i{display:block;height:100%;background:var(--ink);border-radius:4px;transition:width 1s linear}
+.chart{width:100%;height:auto;display:block}.grid{stroke:var(--line);stroke-width:1}.ax{fill:var(--mut);font-size:9.5px}
+.bar{fill:var(--c)}.anim .bar{transform-box:fill-box;transform-origin:bottom;animation:grow .7s cubic-bezier(.2,.8,.2,1) both}
+@keyframes grow{from{transform:scaleY(0)}}
+.seg{transition:stroke-dasharray .6s}
+.leg{display:flex;flex-wrap:wrap;gap:6px 14px;margin-top:10px;font-size:12px;color:var(--mut)}.leg i{display:inline-block;width:8px;height:8px;border-radius:3px;background:var(--c);margin-right:5px}
+.chips{display:flex;gap:6px;margin:10px 0 4px;overflow-x:auto}.chip{border:1px solid var(--line);background:transparent;border-radius:99px;padding:6px 12px;font-size:13px;white-space:nowrap}.chip.on{background:var(--ink);color:var(--bg);border-color:var(--ink)}
+.hbar{height:8px;background:var(--soft);border-radius:5px;overflow:hidden;margin-top:6px}.hbar i{display:block;height:100%;background:var(--c);border-radius:5px;transition:width .7s}
+.empty{padding:26px 0;text-align:center;color:var(--mut);font-size:13px}
+.rep{padding:14px 0;border-top:1px solid var(--line)}.rep:first-of-type{border:0}
+.day{font-size:12px;color:var(--mut);margin:16px 4px 8px;font-weight:600;letter-spacing:.04em;text-transform:uppercase}
+nav{position:fixed;left:0;right:0;bottom:0;display:flex;justify-content:center;padding:10px 16px calc(env(safe-area-inset-bottom) + 10px);background:color-mix(in srgb,var(--bg) 82%,transparent);backdrop-filter:blur(16px);-webkit-backdrop-filter:blur(16px);border-top:1px solid var(--line);z-index:5}
+nav div{display:flex;width:100%;max-width:528px;gap:4px}
+nav button{flex:1;border:0;background:none;color:var(--mut);display:flex;flex-direction:column;align-items:center;gap:3px;font-size:11px;font-weight:500;padding:6px 0;border-radius:12px}
+nav button.on{color:var(--ink)}
+.banner{background:var(--soft);border-radius:12px;padding:9px 14px;font-size:13px;color:var(--mut);margin-bottom:12px;text-align:center}
+#sheet{position:fixed;inset:0;z-index:20;pointer-events:none}#sheet.open{pointer-events:auto}
+.back{position:absolute;inset:0;background:rgba(0,0,0,.4);opacity:0;transition:.25s}.open .back{opacity:1}
+.sh{position:absolute;left:0;right:0;bottom:0;max-width:560px;margin:0 auto;background:var(--card);border-radius:26px 26px 0 0;padding:10px 20px calc(env(safe-area-inset-bottom) + 22px);max-height:92vh;overflow:auto;transform:translateY(100%);transition:transform .3s cubic-bezier(.2,.8,.2,1)}.open .sh{transform:none}
+.grab{width:40px;height:4px;border-radius:3px;background:var(--line);margin:0 auto 14px}
+label{display:block;font-size:13px;color:var(--mut);margin:14px 0 6px;font-weight:500}
+input,textarea{width:100%;padding:12px 14px;border-radius:13px;border:1px solid var(--line);background:var(--bg);outline:0;font-size:16px}
+input:focus,textarea:focus{border-color:var(--ink)}textarea{min-height:76px;resize:vertical}
+.og{display:grid;grid-template-columns:1fr 1fr;gap:8px}.og input{padding:10px 12px}
+.sw{display:flex;align-items:center;justify-content:space-between;margin-top:16px}
+.sw input{width:46px;height:28px;appearance:none;background:var(--soft);border-radius:20px;position:relative;padding:0;border:1px solid var(--line)}
+.sw input:checked{background:var(--ok)}.sw input::after{content:"";position:absolute;top:2px;left:2px;width:22px;height:22px;border-radius:50%;background:#fff;transition:.2s;box-shadow:0 1px 3px rgba(0,0,0,.3)}.sw input:checked::after{left:20px}
+.center{min-height:80vh;display:flex;flex-direction:column;justify-content:center}
+.lnk{font-size:12px;background:var(--soft);padding:10px 12px;border-radius:12px;word-break:break-all;color:var(--mut)}
+#toast{position:fixed;left:50%;bottom:100px;transform:translate(-50%,20px);background:var(--ink);color:var(--bg);padding:10px 18px;border-radius:99px;font-size:13px;opacity:0;transition:.3s;z-index:30;pointer-events:none;max-width:90vw}#toast.show{opacity:1;transform:translate(-50%,0)}
+.think::after{content:"";animation:dt 1.2s infinite}@keyframes dt{0%{content:"."}33%{content:".."}66%{content:"..."}}
+</style>
+</head>
+<body>
+<div id="app"></div><div id="sheet"></div><div id="toast"></div>
+<script src="config.js"></script>
+<script type="module">
+import {initializeApp} from "https://www.gstatic.com/firebasejs/10.14.1/firebase-app.js";
+import {getDatabase,ref,onValue,set,update,push,runTransaction,onDisconnect,serverTimestamp} from "https://www.gstatic.com/firebasejs/10.14.1/firebase-database.js";
+
+/* ---------- helpers ---------- */
+const $=s=>document.querySelector(s);
+const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const arr=x=>x?Object.values(x):[];
+const pad=n=>String(n).padStart(2,'0');
+const fmt=m=>{m=Math.round(m||0);const h=Math.floor(m/60),r=m%60;return h?`${h}h${r?` ${r}m`:''}`:`${r}m`};
+const dkey=d=>`${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}`;
+const pkey=k=>{const [y,m,d]=k.split('-').map(Number);return new Date(y,m-1,d)};
+const mondayOf=d=>{const x=new Date(d.getFullYear(),d.getMonth(),d.getDate());x.setDate(x.getDate()-(x.getDay()+6)%7);return x};
+const rid=n=>Array.from(crypto.getRandomValues(new Uint8Array(n)),b=>'abcdefghijkmnpqrstuvwxyz23456789'[b%32]).join('');
+const ago=t=>{const m=Math.floor((Date.now()-t)/60000);return m<1?'just now':m<60?`${m}m ago`:m<1440?`${Math.floor(m/60)}h ago`:`${Math.floor(m/1440)}d ago`};
+const ic=p=>`<svg class="ic" viewBox="0 0 24 24">${p}</svg>`;
+const toast=m=>{const t=$('#toast');t.textContent=m;t.className='show';clearTimeout(toast.t);toast.t=setTimeout(()=>t.className='',2600)};
+const setTheme=t=>{document.documentElement.dataset.theme=t;localStorage.setItem('sos:theme',t);$('meta[name=theme-color]').content=t==='dark'?'#0e0e11':'#f7f6f2'};
+setTheme(localStorage.getItem('sos:theme')||(matchMedia('(prefers-color-scheme:dark)').matches?'dark':'light'));
+
+/* ---------- firebase ---------- */
+const cfg=window.SOS_CONFIG||{};
+let db=null;
+if(cfg.databaseURL&&!/PASTE/i.test(cfg.databaseURL)){try{db=getDatabase(initializeApp({databaseURL:cfg.databaseURL}))}catch(e){console.error(e)}}
+const DEF=["Pizza","Biryani","Burger","Pasta","Sushi","Momos","Sandwich","Noodles","Tacos","Dosa"];
+const S={roomId:'',me:null,loaded:false,room:null,players:{},presence:{},config:{},game:{status:'lobby',round:0},answers:{},sessions:{},reports:{},connected:false,offset:0,tab:'home',pick:null,pickRound:0,subj:'all',hist:'all',histN:20};
+const base=()=>`rooms/${S.roomId}`;
+const now=()=>Date.now()+S.offset;
+const plist=()=>Object.entries(S.players).map(([id,p])=>({id,...p})).sort((a,b)=>a.joinedAt-b.joinedAt);
+const pidx=id=>plist().findIndex(p=>p.id===id);
+const pname=id=>S.players[id]?.name||'Player';
+const isHost=()=>S.room?.hostId===S.me?.pid;
+const opt=i=>S.config.options?.[i]||'—';
+const mins=()=>S.config.studyMinutes||60;
+const link=()=>location.origin+location.pathname+'#'+S.roomId;
+const av=(id,sz)=>`<span class="av c${pidx(id)}" ${sz?`style="width:${sz}px;height:${sz}px;font-size:${sz/2.6}px;border-radius:${sz/3}px"`:''}>${esc(pname(id)[0]||'?').toUpperCase()}</span>`;
+const saveId=()=>localStorage.setItem('sos:id:'+S.roomId,JSON.stringify(S.me));
+
+let unsub=null;
+function enter(id){
+  S.roomId=id;S.loaded=false;S.room=null;S.presOn=false;S.lastStatus=null;S.me=null;
+  unsub&&unsub();unsub=null;
+  if(!id||!db){render();return}
+  localStorage.setItem('sos:last',id);
+  try{S.me=JSON.parse(localStorage.getItem('sos:id:'+id)||'null')}catch{}
+  unsub=onValue(ref(db,'rooms/'+id),snap=>{
+    const v=snap.val()||{};
+    S.loaded=true;S.room=v.meta||null;S.players=v.players||{};S.presence=v.presence||{};S.config=v.config||{};
+    S.game=v.game||{status:'lobby',round:0};S.answers=v.answers||{};S.sessions=v.sessions||{};S.reports=v.reports||{};
+    after();render();
+  },()=>{S.loaded=true;render()});
+}
+if(db){
+  onValue(ref(db,'.info/serverTimeOffset'),s=>S.offset=s.val()||0);
+  onValue(ref(db,'.info/connected'),s=>{S.connected=!!s.val();S.presOn=false;after();render()});
+  document.addEventListener('visibilitychange',()=>{if(document.hidden){pres(false);S.presOn=false}else{S.presOn=false;after()}});
+  addEventListener('hashchange',()=>enter(location.hash.slice(1)));
+}
+function pres(on){
+  if(!db||!S.me||!S.room||!S.connected||!S.players[S.me.pid])return;
+  const r=ref(db,`${base()}/presence/${S.me.pid}`);
+  if(on)onDisconnect(r).set({online:false,lastSeen:serverTimestamp()}).then(()=>set(r,{online:true,lastSeen:serverTimestamp()}));
+  else set(r,{online:false,lastSeen:serverTimestamp()});
+}
+
+/* ---------- game logic (runs on every phone, guarded by transactions) ---------- */
+function after(){
+  if(!S.room||!S.me||!S.players[S.me.pid])return;
+  if(!S.presOn&&S.connected&&!document.hidden){S.presOn=true;pres(true)}
+  const g=S.game,key=g.status+g.round;
+  if(S.lastStatus&&S.lastStatus!==key&&S.tab==='home'&&['choosing','survived','study'].includes(g.status))S.tab='game';
+  S.lastStatus=key;
+  if(g.status!=='choosing'){S.resolving=null;return}
+  const a=S.answers['r'+g.round]||{},ids=Object.keys(S.players);
+  if(ids.length===3&&ids.every(i=>a[i]!==undefined)&&S.resolving!==g.round){
+    S.resolving=g.round;
+    const picks=ids.map(i=>a[i]),same=new Set(picks).size===1,t=now(),r=g.round;
+    runTransaction(ref(db,base()+'/game'),c=>{
+      if(!c||c.status!=='choosing'||c.round!==r)return;
+      return {status:same?'survived':'study',round:r,active:c.active||null,matched:same?picks[0]:null,studyStartedAt:same?null:t,studyEndsAt:same?null:t+mins()*60000};
+    });
+  }
+}
+function nextRound(){
+  const r=S.game.round;
+  runTransaction(ref(db,base()+'/game'),c=>{
+    if(!c||c.round!==r||!['survived','study'].includes(c.status))return;
+    let a=arr(c.active);
+    if(c.status==='survived'&&S.config.removeMatched!==false)a=a.filter(i=>i!==c.matched);
+    if(a.length<2)return {status:'finished',round:r,active:a.length?a:null,matched:c.matched??null};
+    return {status:'choosing',round:r+1,active:a,matched:null};
+  });
+}
+
+/* ---------- stats ---------- */
+function stats(){
+  const pl=plist(),rs=arr(S.reports),today=new Date(),tk=dkey(today),mon=mondayOf(today),wk=dkey(mon);
+  const per=pl.map(()=>({total:0,today:0,week:0,n:0}));
+  const days=[...Array(7)].map((_,i)=>{const d=new Date(today);d.setDate(d.getDate()-6+i);return d});
+  const weeks=[...Array(8)].map((_,i)=>{const d=new Date(mon);d.setDate(d.getDate()-7*(7-i));return d});
+  const di={},wi={};days.forEach((d,i)=>di[dkey(d)]=i);weeks.forEach((d,i)=>wi[dkey(d)]=i);
+  const daily=pl.map(()=>Array(7).fill(0)),weekly=pl.map(()=>Array(8).fill(0)),subj={},dset=new Set();
+  let group=0,gweek=0;
+  rs.forEach(r=>{
+    const k=pidx(r.pid);if(k<0)return;const m=+r.minutes||0;
+    per[k].total+=m;per[k].n++;group+=m;dset.add(r.date);
+    if(r.date===tk)per[k].today+=m;
+    const w=dkey(mondayOf(pkey(r.date)));
+    if(w===wk){per[k].week+=m;gweek+=m}
+    if(r.date in di)daily[k][di[r.date]]+=m;
+    if(w in wi)weekly[k][wi[w]]+=m;
+    const sk=(r.subject||'Other').trim().toLowerCase();
+    (subj[sk]=subj[sk]||{label:r.subject||'Other',by:[0,0,0]}).by[k]+=m;
+  });
+  let streak=0;const d=new Date(today);if(!dset.has(dkey(d)))d.setDate(d.getDate()-1);
+  while(dset.has(dkey(d))){streak++;d.setDate(d.getDate()-1)}
+  const dl=days.map(d=>d.toLocaleDateString('en',{weekday:'short'}));
+  const wl=weeks.map(d=>`${d.getDate()}/${d.getMonth()+1}`);
+  return {per,group,gweek,streak,daily,weekly,dl,wl,subj};
+}
+function barsSvg(labels,series){
+  const W=320,H=170,L=26,B=20,T=8,n=labels.length,cw=(W-L)/n,bw=Math.min(26,cw*.58);
+  const mx=Math.max(...labels.map((_,i)=>series.reduce((s,x)=>s+x[i],0)));
+  if(!mx)return `<div class="empty">Nothing logged in this period yet.</div>`;
+  const hm=Math.ceil(mx/60),step=Math.ceil(hm/3),top=Math.ceil(hm/step)*step*60,y=m=>T+(H-T-B)*(1-m/top);
+  let s=`<svg viewBox="0 0 ${W} ${H}" class="chart">`;
+  for(let h=0;h<=top/60;h+=step){const yy=y(h*60);s+=`<line x1="${L}" x2="${W}" y1="${yy}" y2="${yy}" class="grid"/><text x="${L-6}" y="${yy+3}" class="ax" text-anchor="end">${h}h</text>`}
+  labels.forEach((lb,i)=>{
+    const x=L+cw*i+(cw-bw)/2;let acc=0;
+    series.forEach((v,k)=>{if(!v[i])return;const y0=y(acc),y1=y(acc+v[i]);s+=`<rect class="bar c${k}" x="${x}" y="${y1}" width="${bw}" height="${y0-y1}" rx="2.5" style="animation-delay:${i*45}ms"><title>${esc(pname(plist()[k].id))}: ${fmt(v[i])}</title></rect>`;acc+=v[i]});
+    s+=`<text x="${x+bw/2}" y="${H-5}" class="ax" text-anchor="middle">${lb}</text>`;
+  });
+  return s+'</svg>';
+}
+function donut(items){
+  const tot=items.reduce((s,x)=>s+x.val,0);
+  if(!tot)return `<div class="empty">No subjects yet.</div>`;
+  const r=42,C=2*Math.PI*r;let off=0;
+  const segs=items.map((x,i)=>{const l=x.val/tot*C,e=`<circle class="seg" r="${r}" cx="60" cy="60" fill="none" stroke-width="14" style="stroke:var(--s${i%6})" stroke-dasharray="${Math.max(l-2,.1)} ${C}" stroke-dashoffset="${-off}" transform="rotate(-90 60 60)"/>`;off+=l;return e}).join('');
+  return `<div class="row"><svg viewBox="0 0 120 120" style="width:128px;flex:none">${segs}<text x="60" y="58" text-anchor="middle" style="font-size:15px;font-weight:700;fill:var(--ink)">${fmt(tot)}</text><text x="60" y="73" text-anchor="middle" class="ax">total</text></svg>
+  <div class="sp">${items.map((x,i)=>`<div class="row sm" style="padding:4px 0"><i style="width:9px;height:9px;border-radius:3px;background:var(--s${i%6});flex:none"></i><span class="sp" style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(x.label)}</span><b>${Math.round(x.val/tot*100)}%</b></div>`).join('')}</div></div>`;
+}
+
+/* ---------- views ---------- */
+function render(){
+  const a=document.activeElement,app=$('#app');
+  if(app.contains(a)&&/INPUT|TEXTAREA/.test(a.tagName))return;
+  const k=S.roomId+S.tab+S.game.status+S.game.round+S.loaded+(S.me?1:0);
+  app.className=k!==S.lastK?'anim':'';S.lastK=k;
+  app.innerHTML=route();tick();
+}
+function route(){
+  if(!db)return `<div class="center"><h1>Almost there</h1><p class="mut">Open <b>config.js</b> and paste your Firebase Database URL between the quotes, then save. The deployment guide shows how.</p></div>`;
+  if(!S.roomId){
+    const last=localStorage.getItem('sos:last');
+    if(last&&!S.skipLast){S.skipLast=1;location.hash=last;return ''}
+    return `<div class="center"><div class="brand" style="margin-bottom:14px">SAME OR STUDY</div><h1>Pick the same.<br>Or study.</h1><p class="mut" style="margin:12px 0 22px">A private game for three friends. Create a room, share the link.</p>
+    <form data-form="create"><label>Room name</label><input name="room" maxlength="30" required placeholder="e.g. The Trio"><label>Your name</label><input name="me" maxlength="20" required placeholder="Your first name"><button class="btn" style="margin-top:20px">Create private room</button></form></div>`;
+  }
+  if(!S.loaded)return `<div class="center mut" style="text-align:center">Loading room…</div>`;
+  if(!S.room)return `<div class="center"><h2>Room not found</h2><p class="mut">Check the link, or create a new room.</p><button class="btn" data-act="home">Back</button></div>`;
+  if(!S.me||!S.players[S.me.pid]){
+    const pl=plist(),full=pl.length>=3;
+    return `<div class="center"><div class="brand" style="margin-bottom:14px">SAME OR STUDY</div><h1>${esc(S.room.name)}</h1><p class="mut" style="margin:10px 0 20px">${pl.length}/3 players have joined.</p>
+    ${full?'':`<form data-form="join"><label>Your name</label><input name="me" maxlength="20" required placeholder="Your first name"><button class="btn" style="margin-top:16px">Join room</button></form>`}
+    ${pl.length?`<h3 style="margin:${full?0:26}px 0 10px">${full?'Room is full. Are you one of these players?':'Already joined on another device?'}</h3>${pl.map(p=>`<button class="opt" style="width:100%;margin-bottom:8px" data-act="claim" data-pid="${p.id}">${av(p.id,30)} I'm ${esc(p.name)}</button>`).join('')}`:''}</div>`;
+  }
+  const T={home:homeV,game:gameV,stats:statsV,hist:histV}[S.tab];
+  const nav=[['home','Home','<path d="M3 11l9-8 9 8v9a1 1 0 0 1-1 1h-5v-6H9v6H4a1 1 0 0 1-1-1z"/>'],['game','Game','<rect x="3" y="3" width="7" height="7" rx="2"/><rect x="14" y="3" width="7" height="7" rx="2"/><rect x="3" y="14" width="7" height="7" rx="2"/><rect x="14" y="14" width="7" height="7" rx="2"/>'],['stats','Insights','<path d="M5 20V10M12 20V4M19 20v-7"/>'],['hist','Reports','<circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/>']];
+  return `<header class="top"><div><div class="brand">SAME OR STUDY</div><div class="rn">${esc(S.room.name)} <i class="dot ${S.connected?'on':''}"></i></div></div><div class="hb"><button class="ib" data-act="theme" aria-label="Theme">${ic('<path d="M21 13A9 9 0 1 1 11 3a7 7 0 0 0 10 10z"/>')}</button><button class="ib" data-act="settings" aria-label="Settings">${ic('<path d="M4 6h10M18 6h2M4 12h4M12 12h8M4 18h12M20 18h0"/><circle cx="16" cy="6" r="2"/><circle cx="10" cy="12" r="2"/><circle cx="18" cy="18" r="2"/>')}</button></div></header>
+  ${S.connected?'':'<div class="banner">Reconnecting… changes will sync automatically</div>'}
+  ${T()}<nav><div>${nav.map(([k,l,p])=>`<button class="${S.tab===k?'on':''}" data-act="tab" data-t="${k}">${ic(p)}${l}</button>`).join('')}</div></nav>`;
+}
+const online=id=>S.presence[id]?.online===true;
+const statusOf=(id)=>S.sessions['r'+S.game.round]?.[id]?.status||'none';
+
+function homeV(){
+  const st=stats(),g=S.game,pl=plist(),host=isHost();
+  const active=g.status==='lobby'?opts().map((o,i)=>o.trim()?i:-1).filter(i=>i>=0):arr(g.active);
+  const rl=g.status==='lobby'?'Not started':g.status==='finished'?'Game complete':`Round ${g.round}`;
+  let cta;
+  if(pl.length<3)cta=`<button class="btn" disabled>Waiting for friends (${pl.length}/3)</button>`;
+  else if(g.status==='lobby')cta=host?`<button class="btn" data-act="start">Start game</button>`:`<button class="btn" disabled>Waiting for host to start</button>`;
+  else if(g.status==='finished')cta=host?`<button class="btn" data-act="reset">Play again</button>`:`<button class="btn ghost" data-act="tab" data-t="game">View result</button>`;
+  else cta=`<button class="btn" data-act="tab" data-t="game">Continue game</button>`;
+  const total=Math.max(10,opts().length);
+  return `<div class="card"><h3>Current game</h3><div class="row" style="margin-top:8px"><div class="big">${rl}</div><div class="sp"></div><div style="text-align:right"><div style="font-weight:600;font-size:20px">${active.length}</div><div class="mut sm">options left</div></div></div>
+  <div class="dots">${Array.from({length:total},(_,i)=>`<i class="${active.includes(i)?'on':''}"></i>`).join('')}</div><div style="margin-top:18px">${cta}</div></div>
+  ${pl.length<3?`<div class="card"><h3>Invite friends</h3><p class="sm mut" style="margin:6px 0 10px">Send this link to your ${3-pl.length} other friend${pl.length===2?'':'s'}.</p><div class="lnk">${esc(link())}</div><button class="btn sm" style="margin-top:10px" data-act="copy">Copy link</button></div>`:''}
+  <div class="card"><h3>Players</h3>${pl.map((p,i)=>{const o=online(p.id),pr=S.presence[p.id];return `<div class="row pr">${av(p.id)}<div class="sp"><div style="font-weight:600">${esc(p.name)}${p.id===S.me.pid?' <span class="mut sm">· you</span>':''}${p.id===S.room.hostId?' <span class="mut sm">· host</span>':''}</div><div class="sm mut"><i class="dot ${o?'on':''}"></i> ${o?'Online':'Offline'+(pr?.lastSeen?' · '+ago(pr.lastSeen):'')}</div></div><div style="text-align:right"><div style="font-weight:600">${fmt(st.per[i].today)}</div><div class="sm mut">today</div></div></div>`}).join('')}</div>
+  <div class="trio"><div class="card"><h3>Group total</h3><div class="v">${fmt(st.group)}</div></div><div class="card"><h3>This week</h3><div class="v">${fmt(st.gweek)}</div></div><div class="card"><h3>Streak</h3><div class="v">${st.streak}<span class="sm mut"> d</span></div></div></div>
+  <button class="btn ghost" data-act="log">+ Log a study session</button>`;
+}
+
+function gameV(){
+  const g=S.game,pl=plist(),host=isHost(),me=S.me.pid,a=S.answers['r'+g.round]||{};
+  if(g.status==='lobby')return `<div class="card"><h2>How it works</h2><p class="mut">Everyone secretly picks one option. If all three match, everyone survives and that option retires. If not, the group faces a ${mins()}-minute study challenge.</p>${pl.length===3&&host?`<button class="btn" data-act="start">Start game</button>`:`<button class="btn" disabled>${pl.length<3?`Waiting for friends (${pl.length}/3)`:'Waiting for host'}</button>`}</div>`;
+  if(g.status==='finished')return `<div class="card"><span class="tag ok">Complete</span><h2 style="margin-top:12px">Every option is played out</h2><p class="mut">Nice run. Your reports and stats are kept.</p>${host?`<button class="btn" data-act="reset">Play again</button>`:''}</div>`;
+  if(g.status==='choosing'){
+    if(S.pickRound!==g.round){S.pick=null;S.pickRound=g.round}
+    const mine=a[me],locked=mine!==undefined,sel=locked?mine:S.pick;
+    return `<div class="card"><h3>Round ${g.round}</h3><h2 style="margin-top:4px">${locked?'Locked in. Waiting for the others':'Pick your answer'}</h2><p class="sm mut" style="margin:4px 0 0">Nobody sees any answer until all three are locked in.</p></div>
+    <div class="opts">${arr(g.active).map((i,n)=>`<button class="opt ${sel===i?'sel':''}" data-act="pick" data-i="${i}" ${locked?'disabled':''}><span class="n">${n+1}</span>${esc(opt(i))}</button>`).join('')}</div>
+    ${locked?`<div class="card" style="margin-top:12px">${pl.map(p=>`<div class="row pr">${av(p.id,32)}<span class="sp">${esc(p.name)}</span>${a[p.id]!==undefined?'<span class="pill ok">Locked in</span>':'<span class="pill think">Thinking</span>'}</div>`).join('')}</div>`:`<div class="dock"><button class="btn" data-act="lock" ${S.pick==null?'disabled':''}>Lock in answer</button></div>`}`;
+  }
+  /* survived or study: reveal */
+  const same=g.status==='survived';
+  let h=`<div class="card"><h3>Round ${g.round} · reveal</h3><div style="margin:12px 0">${pl.map((p,k)=>`<div class="rcard" style="--i:${k}">${av(p.id,32)}<span>${esc(p.name)}</span><b>${esc(opt(a[p.id]))}</b></div>`).join('')}</div>
+  <span class="tag ${same?'ok':'bad'}">${same?'In sync · everyone survives':'Out of sync'}</span></div>`;
+  if(same){
+    const rm=S.config.removeMatched!==false;
+    h+=`<div class="card"><p class="mut" style="margin:0 0 14px">${rm?`“${esc(opt(g.matched))}” is retired. ${arr(g.active).length-1} option${arr(g.active).length-1===1?'':'s'} left.`:'Round cleared.'}</p><button class="btn" data-act="next">Next round</button></div>`;
+  }else{
+    const ss=pl.map(p=>statusOf(p.id)),all=ss.every(s=>s==='completed'),my=statusOf(me);
+    const L={none:['Not started',''],studying:['Studying','st'],completed:['Completed','ok']};
+    h+=`<div class="card"><h3 id="cl">${mins()}-minute study challenge</h3><div class="clock" id="clock">--:--</div><div class="prog"><i id="cbar" style="width:0"></i></div></div>
+    <div class="card"><h3>Everyone's progress</h3>${pl.map((p,i)=>`<div class="row pr">${av(p.id,32)}<span class="sp">${esc(p.name)}</span><span class="pill ${L[ss[i]][1]}">${L[ss[i]][0]}</span></div>`).join('')}
+    <div style="margin-top:14px">${my==='none'?`<button class="btn" data-act="begin">Start studying</button>`:my==='studying'?`<button class="btn" data-act="report" data-r="${g.round}">Finish &amp; write report</button>`:`<button class="btn" disabled>Your report is saved ✓</button>`}
+    ${all?`<button class="btn" data-act="next">Continue to round ${g.round+1}</button>`:host?`<button class="btn ghost" data-act="skip">Skip challenge (host)</button>`:''}</div></div>`;
+  }
+  return h;
+}
+function tick(){
+  const el=$('#clock');if(!el||S.game.status!=='study'||!S.game.studyEndsAt)return;
+  const ms=S.game.studyEndsAt-now(),tot=(S.game.studyEndsAt-S.game.studyStartedAt)||1;
+  if(ms<=0){el.textContent='00:00';el.classList.add('done');$('#cl').textContent="Time's up. Finish your report"}
+  else{const s=Math.ceil(ms/1000);el.textContent=`${pad(Math.floor(s/60))}:${pad(s%60)}`}
+  $('#cbar').style.width=Math.min(100,Math.max(0,100-ms/tot*100))+'%';
+}
+setInterval(tick,1000);
+
+function statsV(){
+  const st=stats(),pl=plist();
+  const leg=`<div class="leg">${pl.map((p,i)=>`<span class="c${i}"><i></i>${esc(p.name)}</span>`).join('')}</div>`;
+  let items=Object.values(st.subj).map(s=>({label:s.label,val:S.subj==='all'?s.by.reduce((a,b)=>a+b,0):s.by[pidx(S.subj)]||0})).filter(x=>x.val>0).sort((a,b)=>b.val-a.val);
+  if(items.length>5){const rest=items.slice(5).reduce((s,x)=>s+x.val,0);items=[...items.slice(0,5),{label:'Other',val:rest}]}
+  const mx=Math.max(1,...st.per.map(p=>p.total));
+  return `<div class="trio"><div class="card"><h3>Group total</h3><div class="v">${fmt(st.group)}</div></div><div class="card"><h3>This week</h3><div class="v">${fmt(st.gweek)}</div></div><div class="card"><h3>Streak</h3><div class="v">${st.streak}<span class="sm mut"> d</span></div></div></div>
+  <div class="card"><h3>Daily · last 7 days</h3>${barsSvg(st.dl,st.daily)}${leg}</div>
+  <div class="card"><h3>Weekly · last 8 weeks</h3>${barsSvg(st.wl,st.weekly)}${leg}</div>
+  <div class="card"><h3>Head to head</h3>${pl.map((p,i)=>`<div style="margin-top:14px" class="c${i}"><div class="row">${av(p.id,28)}<span class="sp" style="font-weight:600">${esc(p.name)}</span><b>${fmt(st.per[i].total)}</b></div><div class="hbar"><i style="width:${st.per[i].total/mx*100}%"></i></div><div class="sm mut" style="margin-top:4px">${st.per[i].n} sessions · avg ${fmt(st.per[i].n?st.per[i].total/st.per[i].n:0)} · this week ${fmt(st.per[i].week)}</div></div>`).join('')}</div>
+  <div class="card"><h3>Subjects</h3><div class="chips"><button class="chip ${S.subj==='all'?'on':''}" data-act="subj" data-p="all">Everyone</button>${pl.map(p=>`<button class="chip ${S.subj===p.id?'on':''}" data-act="subj" data-p="${p.id}">${esc(p.name)}</button>`).join('')}</div><div style="margin-top:12px">${donut(items)}</div></div>`;
+}
+function histV(){
+  const pl=plist();
+  let rs=arr(S.reports).filter(r=>S.hist==='all'||r.pid===S.hist).sort((a,b)=>(b.createdAt||0)-(a.createdAt||0));
+  const shown=rs.slice(0,S.histN);let last='',h='';
+  shown.forEach(r=>{
+    if(r.date!==last){last=r.date;h+=`<div class="day">${pkey(r.date).toLocaleDateString('en',{weekday:'long',day:'numeric',month:'short'})}</div>`}
+    h+=`<div class="card" style="padding:4px 18px;margin-bottom:8px"><div class="rep"><div class="row">${av(r.pid,30)}<div class="sp"><b>${esc(r.subject)}</b> <span class="mut">· ${esc(r.topic)}</span><div class="sm mut">${esc(pname(r.pid))}${r.round?` · round ${r.round}`:''}</div></div><span class="pill">${fmt(r.minutes)}</span></div><p style="margin:10px 0 0">${esc(r.accomplished)}</p>${r.notes?`<p class="sm mut" style="margin:6px 0 0">${esc(r.notes)}</p>`:''}</div></div>`;
+  });
+  return `<div class="chips"><button class="chip ${S.hist==='all'?'on':''}" data-act="hist" data-p="all">Everyone</button>${pl.map(p=>`<button class="chip ${S.hist===p.id?'on':''}" data-act="hist" data-p="${p.id}">${esc(p.name)}</button>`).join('')}</div>
+  ${shown.length?h:`<div class="empty">No reports yet. Finish a study challenge or log a session.</div>`}
+  ${rs.length>S.histN?`<button class="btn ghost" data-act="more">Show more</button>`:''}`;
+}
+
+/* ---------- sheets ---------- */
+function sheet(html){$('#sheet').innerHTML=`<div class="back" data-act="close"></div><div class="sh"><div class="grab"></div>${html}</div>`;requestAnimationFrame(()=>$('#sheet').classList.add('open'));document.body.style.overflow='hidden'}
+function closeSheet(){$('#sheet').classList.remove('open');document.body.style.overflow='';setTimeout(()=>{if(!$('#sheet').classList.contains('open'))$('#sheet').innerHTML=''},300);render()}
+function reportSheet(round){
+  const ses=round?S.sessions['r'+round]?.[S.me.pid]:null;
+  const el=ses?.startedAt?Math.min(720,Math.max(1,Math.round((now()-ses.startedAt)/60000))):mins();
+  const subs=[...new Set(arr(S.reports).map(r=>r.subject))];
+  sheet(`<h2>Study report</h2><form data-form="report" data-round="${round||0}">
+  <label>Subject</label><input name="subject" required maxlength="40" list="subs" autocomplete="off" placeholder="e.g. Physics"><datalist id="subs">${subs.map(s=>`<option value="${esc(s)}">`).join('')}</datalist>
+  <label>Topic</label><input name="topic" required maxlength="80" placeholder="e.g. Rotational motion">
+  <label>Actual time studied (minutes)</label><input name="minutes" type="number" inputmode="numeric" min="1" max="720" required value="${el}">
+  <label>What did you accomplish?</label><textarea name="accomplished" required maxlength="400"></textarea>
+  <label>Notes (optional)</label><textarea name="notes" maxlength="400"></textarea>
+  <button class="btn" style="margin-top:20px">Save report</button></form>`);
+}
+function settingsSheet(){
+  const host=isHost(),o=opts();
+  sheet(`<h2>Room settings</h2><form data-form="settings">
+  <label>Invite link</label><div class="lnk">${esc(link())}</div><button type="button" class="btn sm ghost" style="margin-top:8px" data-act="copy">Copy link</button>
+  <label>Room name</label><input name="room" value="${esc(S.room.name)}" maxlength="30" ${host?'':'disabled'}>
+  <label>10 options ${host?'':'(host can edit)'}</label><div class="og">${Array.from({length:10},(_,i)=>`<input name="o${i}" value="${esc(o[i]||'')}" maxlength="30" placeholder="Option ${i+1}" ${host?'':'disabled'}>`).join('')}</div>
+  <label>Study challenge (minutes)</label><input name="mins" type="number" min="5" max="240" value="${mins()}" ${host?'':'disabled'}>
+  <div class="sw"><span>Retire the option after a matching round</span><input type="checkbox" name="rm" ${S.config.removeMatched!==false?'checked':''} ${host?'':'disabled'}></div>
+  ${host?`<button class="btn" style="margin-top:20px">Save settings</button><button type="button" class="btn ghost" data-act="reset">Reset game (keeps reports)</button>`:''}
+  <button type="button" class="btn ghost" data-act="leave">Sign out on this device</button></form>`);
+}
+
+/* ---------- actions ---------- */
+const ACT={
+  tab:t=>{S.tab=t.dataset.t;render();scrollTo(0,0)},
+  home:()=>{location.hash='';S.skipLast=1;localStorage.removeItem('sos:last');enter('')},
+  theme:()=>setTheme(document.documentElement.dataset.theme==='dark'?'light':'dark'),
+  settings:settingsSheet,close:closeSheet,
+  copy:async()=>{try{await navigator.clipboard.writeText(link());toast('Link copied')}catch{prompt('Copy this link',link())}},
+  subj:t=>{S.subj=t.dataset.p;render()},hist:t=>{S.hist=t.dataset.p;render()},more:()=>{S.histN+=20;render()},
+  claim:t=>{const p=S.players[t.dataset.pid];if(!p)return;S.me={pid:t.dataset.pid,name:p.name};saveId();S.presOn=false;after();render()},
+  pick:t=>{S.pick=+t.dataset.i;S.pickRound=S.game.round;render()},
+  lock:()=>{
+    const i=S.pick,r=S.game.round;if(i==null||S.locking)return;S.locking=1;
+    runTransaction(ref(db,`${base()}/answers/r${r}/${S.me.pid}`),v=>v==null?i:undefined).catch(()=>toast('Could not lock in. Try again')).finally(()=>S.locking=0);
+  },
+  start:()=>{
+    const a=opts().map((o,i)=>o.trim()?i:-1).filter(i=>i>=0);
+    if(a.length<2)return toast('Add at least 2 options in settings');
+    update(ref(db,base()),{game:{status:'choosing',round:1,active:a,matched:null},answers:null,sessions:null});
+  },
+  next:()=>nextRound(),
+  skip:()=>{if(confirm('Skip the study challenge for everyone?'))nextRound()},
+  begin:()=>set(ref(db,`${base()}/sessions/r${S.game.round}/${S.me.pid}`),{status:'studying',startedAt:now()}),
+  report:t=>reportSheet(+t.dataset.r),log:()=>reportSheet(0),
+  reset:()=>{if(confirm('Reset the game to the lobby? Study reports are kept.')){update(ref(db,base()),{game:{status:'lobby',round:0},answers:null,sessions:null});closeSheet();S.tab='home'}},
+  leave:()=>{if(confirm('Sign out on this device? You can rejoin by tapping your name.')){pres(false);localStorage.removeItem('sos:id:'+S.roomId);S.me=null;closeSheet()}}
+};
+const FORMS={
+  create:async f=>{
+    const d=Object.fromEntries(new FormData(f)),id=rid(14),pid=rid(8),t=Date.now();
+    try{
+      await set(ref(db,'rooms/'+id),{meta:{name:d.room.trim(),hostId:pid,createdAt:t},players:{[pid]:{name:d.me.trim(),joinedAt:t}},config:{options:DEF,studyMinutes:60,removeMatched:true},game:{status:'lobby',round:0}});
+      localStorage.setItem('sos:id:'+id,JSON.stringify({pid,name:d.me.trim()}));location.hash=id;
+    }catch{toast('Could not create. Is the database set up?')}
+  },
+  join:f=>{
+    const name=new FormData(f).get('me').trim(),pid=rid(8);if(!name)return;
+    runTransaction(ref(db,base()+'/players'),p=>{p=p||{};if(Object.keys(p).length>=3)return;p[pid]={name,joinedAt:Date.now()};return p})
+    .then(r=>{if(r.committed){S.me={pid,name};saveId();S.presOn=false;after();render()}else toast('This room is already full')}).catch(()=>toast('Could not join. Try again'));
+  },
+  report:f=>{
+    const d=Object.fromEntries(new FormData(f)),round=+f.dataset.round,key=push(ref(db,base()+'/reports')).key;
+    const up={['reports/'+key]:{pid:S.me.pid,round:round||null,subject:d.subject.trim(),topic:d.topic.trim(),minutes:Math.round(+d.minutes),accomplished:d.accomplished.trim(),notes:(d.notes||'').trim(),date:dkey(new Date()),createdAt:serverTimestamp()}};
+    if(round)up[`sessions/r${round}/${S.me.pid}`]={status:'completed',startedAt:S.sessions['r'+round]?.[S.me.pid]?.startedAt||null,completedAt:now()};
+    update(ref(db,base()),up).catch(()=>toast('Sync failed. Check your connection'));
+    toast(S.connected?'Report saved':'Saved. Will sync when online');closeSheet();
+  },
+  settings:f=>{
+    if(!isHost())return closeSheet();
+    const d=Object.fromEntries(new FormData(f));
+    const options=Array.from({length:10},(_,i)=>(d['o'+i]||'').trim());
+    if(options.filter(Boolean).length<2)return toast('Keep at least 2 options');
+    update(ref(db,base()),{'meta/name':d.room.trim()||S.room.name,config:{options,studyMinutes:Math.min(240,Math.max(5,+d.mins||60)),removeMatched:!!d.rm}});
+    toast('Settings saved');closeSheet();
+  }
+};
+document.addEventListener('click',e=>{const t=e.target.closest('[data-act]');if(t)ACT[t.dataset.act]?.(t)});
+document.addEventListener('submit',e=>{e.preventDefault();FORMS[e.target.dataset.form]?.(e.target)});
+
+enter(location.hash.slice(1));
+if(!db)render();
+</script>
+</body>
+</html>

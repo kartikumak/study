@@ -159,14 +159,14 @@ const arr=x=>x?Object.values(x):[];
 const pad=n=>String(n).padStart(2,'0');
 const fmt=m=>{m=Math.round(m||0);const h=Math.floor(m/60),r=m%60;return h?`${h}h${r?` ${r}m`:''}`:`${r}m`};
 const dkey=d=>`${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}`;
-const pkey=k=>{const [y,m,d]=k.split('-').map(Number);return new Date(y,m-1,d)};
+const pkey=k=>{const parts=(k||'').split('-');const [y,m,d]=(parts.length===3?parts:[2026,1,1]).map(Number);return new Date(y,m-1,d)};
 const mondayOf=d=>{const x=new Date(d.getFullYear(),d.getMonth(),d.getDate());x.setDate(x.getDate()-(x.getDay()+6)%7);return x};
 const rid=n=>Array.from(crypto.getRandomValues(new Uint8Array(n)),b=>'abcdefghijkmnpqrstuvwxyz23456789'[b%32]).join('');
 const ago=t=>{if(!t)return '';const m=Math.floor((Date.now()-t)/60000);return m<1?'just now':m<60?`${m}m ago`:m<1440?`${Math.floor(m/60)}h ago`:`${Math.floor(m/1440)}d ago`};
 const ic=p=>`<svg class="ic" viewBox="0 0 24 24">${p}</svg>`;
-const toast=m=>{const t=$('#toast');t.textContent=m;t.className='show';clearTimeout(toast.t);toast.t=setTimeout(()=>t.className='',2600)};
-const setTheme=t=>{document.documentElement.dataset.theme=t;localStorage.setItem('sos:theme',t);$('meta[name=theme-color]').content=t==='dark'?'#0c0c0f':'#f7f6f2'};
-setTheme(localStorage.getItem('sos:theme')||(matchMedia('(prefers-color-scheme:dark)').matches?'dark':'light'));
+const toast=m=>{const t=$('#toast');if(!t)return;t.textContent=m;t.className='show';clearTimeout(toast.t);toast.t=setTimeout(()=>t.className='',2600)};
+const setTheme=t=>{document.documentElement.dataset.theme=t;localStorage.setItem('sos:theme',t);const m=$('meta[name=theme-color]');if(m)m.content=t==='dark'?'#0c0c0f':'#f7f6f2'};
+try{setTheme(localStorage.getItem('sos:theme')||(matchMedia('(prefers-color-scheme:dark)').matches?'dark':'light'));}catch{setTheme('light')}
 
 /* ---------- firebase & state ---------- */
 const cfg=window.SOS_CONFIG||{};
@@ -190,9 +190,9 @@ const S={
 };
 const base=()=>`rooms/${S.roomId}`;
 const now=()=>Date.now()+S.offset;
-const plist=()=>Object.entries(S.players).map(([id,p])=>({id,...p})).sort((a,b)=>(a.joinedAt||0)-(b.joinedAt||0));
+const plist=()=>Object.entries(S.players||{}).map(([id,p])=>({id,...p})).sort((a,b)=>(a.joinedAt||0)-(b.joinedAt||0));
 const pidx=id=>Math.max(0,plist().findIndex(p=>p.id===id));
-const pname=id=>S.players[id]?.name||'Player';
+const pname=id=>S.players?.[id]?.name||'Player';
 const isHost=()=>S.room?.hostId===S.me?.pid;
 const opts=()=>{
   const raw=S.config?.options;
@@ -201,20 +201,18 @@ const opts=()=>{
   return list.length?list:[...DEF];
 };
 const opt=i=>opts()[i]||'—';
-const mins=()=>S.config.studyMinutes||60;
+const mins=()=>S.config?.studyMinutes||60;
 const link=()=>location.origin+location.pathname+'#'+S.roomId;
-const online=id=>S.presence[id]?.online===true;
+const online=id=>S.presence?.[id]?.online===true;
 const av=(id,sz,showDot=false)=>`<span class="avwrap"><span class="av c${pidx(id)%6}" ${sz?`style="width:${sz}px;height:${sz}px;font-size:${Math.round(sz/2.5)}px;border-radius:${Math.round(sz/3)}px"`:''}>${esc(pname(id)[0]||'?').toUpperCase()}</span>${showDot?`<i class="avdot ${online(id)?'on':''}"></i>`:''}</span>`;
 const saveId=()=>localStorage.setItem('sos:id:'+S.roomId,JSON.stringify(S.me));
 const savedName=()=>localStorage.getItem('sos:name')||'';
 
-/* Private on-device diary storage (never uploaded to Firebase) */
 const diaryKey=()=>`sos:diary:${S.roomId}:${S.me?.pid||'local'}`;
 const getDiary=()=>{try{return JSON.parse(localStorage.getItem(diaryKey())||'[]')}catch{return []}};
 const saveDiary=list=>{try{localStorage.setItem(diaryKey(),JSON.stringify(list))}catch{toast('Device storage full')}};
 const fmtStamp=ts=>{const d=new Date(ts);return d.toLocaleDateString('en',{day:'numeric',month:'short'})+' · '+d.toLocaleTimeString('en',{hour:'2-digit',minute:'2-digit'})};
 
-/* Custom non-blocking modal confirm */
 function askConfirm(title,msg,okText='Confirm',danger=false){
   return new Promise(resolve=>{
     sheet(`<h2>${esc(title)}</h2><p class="mut" style="margin:8px 0 18px">${esc(msg)}</p>
@@ -222,8 +220,9 @@ function askConfirm(title,msg,okText='Confirm',danger=false){
       <button type="button" class="btn ghost" id="mCancel">Cancel</button>
       <button type="button" class="btn ${danger?'':'ok'}" style="${danger?'background:var(--bad);color:#fff':''}" id="mOk">${esc(okText)}</button>
     </div>`);
-    $('#mCancel').onclick=()=>{closeSheet();resolve(false)};
-    $('#mOk').onclick=()=>{closeSheet();resolve(true)};
+    const c=$('#mCancel'),o=$('#mOk');
+    if(c)c.onclick=()=>{closeSheet();resolve(false)};
+    if(o)o.onclick=()=>{closeSheet();resolve(true)};
   });
 }
 
@@ -231,7 +230,7 @@ let unsub=null,hbTimer=null;
 function enter(id){
   S.roomId=id;S.loaded=false;S.err=null;S.room=null;S.presOn=false;S.lastStatus=null;S.me=null;
   S.prevPlayers=null;S.prevOnline=null;
-  unsub&&unsub();unsub=null;
+  if(unsub)try{unsub()}catch{};unsub=null;
   if(!id||!db){render();return}
   localStorage.setItem('sos:last',id);
   try{S.me=JSON.parse(localStorage.getItem('sos:id:'+id)||'null')}catch{}
@@ -259,7 +258,7 @@ function enter(id){
 
 function notifyChanges(){
   if(!S.room||!S.me||!S.players[S.me.pid])return;
-  const curIds=Object.keys(S.players);
+  const curIds=Object.keys(S.players||{});
   if(S.prevPlayers){
     curIds.forEach(id=>{
       if(!S.prevPlayers.includes(id)&&id!==S.me.pid)toast(`${pname(id)} joined the room`);
@@ -294,14 +293,14 @@ if(db){
 }
 
 function pres(on,activity){
-  if(!db||!S.me||!S.room||!S.connected||!S.players[S.me.pid])return;
+  if(!db||!S.me||!S.room||!S.players[S.me.pid])return;
   const r=ref(db,`${base()}/presence/${S.me.pid}`);
   const act=activity||currentActivity();
   if(on){
     onDisconnect(r).set({online:false,lastSeen:serverTimestamp(),activity:'offline'})
-      .then(()=>set(r,{online:true,lastSeen:serverTimestamp(),activity:act}));
+      .then(()=>set(r,{online:true,lastSeen:serverTimestamp(),activity:act})).catch(()=>{});
   }else{
-    set(r,{online:false,lastSeen:serverTimestamp(),activity:'offline'});
+    set(r,{online:false,lastSeen:serverTimestamp(),activity:'offline'}).catch(()=>{});
   }
 }
 function currentActivity(){
@@ -324,7 +323,6 @@ hbTimer=setInterval(()=>{
   }
 },25000);
 
-/* ---------- multiplayer game engine (2 to unlimited players) ---------- */
 function after(){
   if(!S.room||!S.me||!S.players[S.me.pid])return;
   if(!S.presOn&&S.connected&&!document.hidden){S.presOn=true;pres(true)}
@@ -335,7 +333,7 @@ function after(){
   S.lastStatus=key;
 
   if(g.status!=='choosing'){S.resolving=null;return}
-  const a=S.answers['r'+g.round]||{},ids=Object.keys(S.players);
+  const a=S.answers['r'+g.round]||{},ids=Object.keys(S.players||{});
   if(ids.length>=2&&ids.every(i=>a[i]!==undefined)&&S.resolving!==g.round){
     S.resolving=g.round;
     const picks=ids.map(i=>a[i]),same=new Set(picks).size===1,t=now(),r=g.round;
@@ -349,7 +347,8 @@ function after(){
         studyStartedAt:same?null:t,
         studyEndsAt:same?null:t+mins()*60000
       };
-    }).finally(()=>{setTimeout(()=>{if(S.resolving===r)S.resolving=null},1500)});
+    }).catch(()=>{})
+    .finally(()=>{setTimeout(()=>{if(S.resolving===r)S.resolving=null},1500)});
   }
 }
 
@@ -454,8 +453,9 @@ function donut(items){
 
 /* ---------- views ---------- */
 function render(){
-  const a=document.activeElement,app=$('#app');
-  if(app.contains(a)&&/INPUT|TEXTAREA/.test(a.tagName))return;
+  const app=$('#app');if(!app)return;
+  const active=document.activeElement;
+  if(app.contains(active)&&/INPUT|TEXTAREA/.test(active.tagName))return;
   const k=S.roomId+S.tab+S.game.status+S.game.round+S.loaded+(S.me?1:0);
   app.className=k!==S.lastK?'anim':'';S.lastK=k;
   app.innerHTML=route();
@@ -737,9 +737,9 @@ function diaryV(){
 function tick(){
   const el=$('#clock');if(!el||S.game.status!=='study'||!S.game.studyEndsAt)return;
   const ms=S.game.studyEndsAt-now(),tot=(S.game.studyEndsAt-S.game.studyStartedAt)||1;
-  if(ms<=0){el.textContent='00:00';el.classList.add('done');$('#cl').textContent="Time's up · submit your report"}
+  if(ms<=0){el.textContent='00:00';el.classList.add('done');const cl=$('#cl');if(cl)cl.textContent="Time's up · submit your report"}
   else{const s=Math.ceil(ms/1000);el.textContent=`${pad(Math.floor(s/60))}:${pad(s%60)}`}
-  $('#cbar').style.width=Math.min(100,Math.max(0,100-ms/tot*100))+'%';
+  const cb=$('#cbar');if(cb)cb.style.width=Math.min(100,Math.max(0,100-ms/tot*100))+'%';
 }
 setInterval(tick,1000);
 
@@ -772,14 +772,16 @@ function histV(){
 
 /* ---------- sheets ---------- */
 function sheet(html){
-  $('#sheet').innerHTML=`<div class="back" data-act="close"></div><div class="sh"><div class="grab"></div>${html}</div>`;
-  requestAnimationFrame(()=>$('#sheet').classList.add('open'));
+  const s=$('#sheet');if(!s)return;
+  s.innerHTML=`<div class="back" data-act="close"></div><div class="sh"><div class="grab"></div>${html}</div>`;
+  requestAnimationFrame(()=>s.classList.add('open'));
   document.body.style.overflow='hidden';
 }
 function closeSheet(){
-  $('#sheet').classList.remove('open');
+  const s=$('#sheet');if(!s)return;
+  s.classList.remove('open');
   document.body.style.overflow='';
-  setTimeout(()=>{if(!$('#sheet').classList.contains('open'))$('#sheet').innerHTML=''},280);
+  setTimeout(()=>{if(!s.classList.contains('open'))s.innerHTML=''},280);
   render();
 }
 function reportSheet(round){
@@ -817,7 +819,7 @@ function settingsSheet(){
 
 /* ---------- actions & forms ---------- */
 const ACT={
-  tab:t=>{S.tab=t.dataset.t;render();scrollTo(0,0)},
+  tab:t=>{S.tab=t.dataset.t;render();window.scrollTo(0,0)},
   home:()=>{location.hash='';S.skipLast=1;localStorage.removeItem('sos:last');enter('')},
   retry:()=>enter(S.roomId),
   theme:()=>setTheme(document.documentElement.dataset.theme==='dark'?'light':'dark'),
@@ -948,7 +950,7 @@ const FORMS={
   create:async f=>{
     if(S.busy.create)return;
     const d=Object.fromEntries(new FormData(f)),id=rid(14),pid=rid(8),t=Date.now();
-    const rname=d.room.trim(),mname=d.me.trim();
+    const rname=(d.room||'').trim(),mname=(d.me||'').trim();
     if(!rname||!mname)return;
     S.busy.create=true;
     try{
@@ -966,7 +968,7 @@ const FORMS={
   },
   join:f=>{
     if(S.busy.join)return;
-    const name=new FormData(f).get('me').trim(),pid=rid(8);
+    const name=(new FormData(f).get('me')||'').trim(),pid=rid(8);
     if(!name)return;
     S.busy.join=true;
     runTransaction(ref(db,base()+'/players'),p=>{
@@ -1000,12 +1002,13 @@ const FORMS={
       ts:Date.now()
     });
     saveDiary(list);
-    f.querySelector('textarea[name=text]').value='';
+    const ta=f.querySelector('textarea[name=text]');if(ta)ta.value='';
     toast('Saved privately on this device');
     render();
   },
   suggest:f=>{
     const inp=f.querySelector('input[name=word]');
+    if(!inp)return;
     const word=(inp.value||'').trim();
     if(!word)return;
     const low=word.toLowerCase();

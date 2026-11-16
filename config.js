@@ -2,5 +2,5 @@
 // Replace the text between the quotes with your Firebase "Database URL".
 // It looks like: https://something-default-rtdb.firebaseio.com
 window.SOS_CONFIG = {
-  databaseURL: "PASTE_YOUR_DATABASE_URL_HERE"
+  databaseURL: "https://sameorstudy-default-rtdb.asia-southeast1.firebasedatabase.app"
 };

@@ -208,13 +208,13 @@ tech:mk("Phone~device|Laptop~device|Internet~network|WiFi~network|AI~software|Go
 num9:nums(9),num10:nums(10),num100:nums(100)
 };
 const CATS=[['fruits','🍎','Fruits'],['vegetables','🥕','Vegetables'],['animals','🐯','Animals'],['countries','🌍','Countries'],['cities','🏙️','Cities'],['sports','⚽','Sports'],['movies','🎬','Movies'],['colours','🎨','Colours'],['food','🍕','Food'],['drinks','🥤','Drinks'],['professions','👩‍⚕️','Professions'],['science','🔬','Science'],['body','🫀','Human Body'],['tech','💻','Technology'],['num9','9️⃣','Numbers 1–9'],['num10','🔟','Numbers 1–10'],['num100','💯','Numbers 1–100'],['random','🎲','Random'],['custom','✏️','Custom topic']].map(([id,icon,label])=>({id,icon,label}));
-const SIZES=[10,8,6,5,4,3];
+const SIZES=[10,8,6,5,4,3,2];
 const getBank=t=>t&&t.custom&&arr(t.custom).length?arr(t.custom).map((w,i)=>({w,t:[],i})):(t&&BANKS[t.id])||[];
 const sim=(a,b)=>{if(a.t.length&&b.t.length){const i=a.t.filter(x=>b.t.includes(x)).length;return i/(a.t.length+b.t.length-i)}return 1/(1+Math.abs(a.i-b.i))};
 /* Round N options: scored by similarity to every earlier answer on this topic (recent rounds weigh more), shrinking 10→8→6→5→4→3. */
 function genOptions(topic,trail,depth){
   const bank=getBank(topic);if(!bank.length)return [];
-  const n=Math.min(SIZES[Math.min(depth,5)],bank.length);
+  const n=Math.min(SIZES[Math.min(depth,6)],bank.length);
   trail=arr(trail);
   if(!trail.length)return bank.slice(0,n).map(x=>x.w);
   const low=s=>String(s).trim().toLowerCase();
@@ -237,7 +237,7 @@ const lsGet=(k,d)=>{try{return JSON.parse(localStorage.getItem(k))??d}catch{retu
 const S={user:null,authReady:false,authFail:'',ug:{},ugLoaded:false,ugErr:'',roomId:'',me:null,loaded:false,err:null,room:null,players:{},presence:{},config:{},
   game:{status:'lobby',round:0},answers:{},sessions:{},reports:{},history:{},proposal:null,schedule:{},diary:{},
   connected:false,offset:0,tab:'home',pick:null,subj:'all',hist:'all',histMode:'study',histN:20,prevPlayers:null,prevOnline:null,busy:{},
-  diaryTags:[],customTags:lsGet('sos:ctags',[]),diaryFilter:'all',diaryDate:'',planDays:[],reminder:null,loginErr:''};
+  diaryTags:[],customTags:lsGet('sos:ctags',[]),diaryFilter:'all',diaryDate:'',planDays:[],reminder:null,loginErr:'',srcs:{},friends:{},invites:{}};
 const D={};let dashUn={},roomUns=[],ugUn=null;
 const base=()=>`rooms/${S.roomId}`;
 const now=()=>Date.now()+S.offset;
@@ -245,7 +245,7 @@ const plist=()=>Object.entries(S.players||{}).map(([id,p])=>({id,...p})).sort((a
 const pidx=id=>Math.max(0,plist().findIndex(p=>p.id===id));
 const pname=id=>S.players?.[id]?.name||'Player';
 const isHost=()=>S.room?.hostId===S.me?.pid;
-const mins=()=>S.config?.studyMinutes||60;
+const mins=()=>S.config?.timerMins||60;
 const online=id=>S.presence?.[id]?.online===true;
 const akey=()=>`${S.game.gid||0}_r${S.game.round}`;
 const sessOf=id=>S.sessions[akey()]?.[id]?.status||'none';
@@ -287,7 +287,11 @@ function detachAll(){
   leaveRoomListeners();Object.keys(dashUn).forEach(detachDash);
   Object.assign(S,{ug:{},ugLoaded:false,roomId:'',me:null,initDone:false,room:null});
 }
+let invUn=null,frUn=null;
 function attachUser(u){
+  if(invUn)try{invUn()}catch{}if(frUn)try{frUn()}catch{}
+  invUn=onValue(ref(db,'invites/'+u.uid),s=>{S.invites=s.val()||{};render()});
+  frUn=onValue(ref(db,'friends/'+u.uid),s=>{S.friends=s.val()||{};render()});
   if(ugUn)try{ugUn()}catch{}
   S.ugLoaded=false;S.ugErr='';
   setTimeout(()=>{if(!S.ugLoaded){S.ugErr='Could not load your groups. Check your connection and database rules.';render()}},10000);
@@ -334,8 +338,8 @@ function enter(id){
     S.loaded=true;S.err=null;
     S.room=v.meta||null;S.players=v.players||{};S.presence=v.presence||{};S.config=v.config||{};
     S.game=v.game||{status:'lobby',round:0};S.answers=v.answers||{};S.sessions=v.sessions||{};
-    S.reports=v.reports||{};S.history=v.history||{};S.proposal=v.proposal||null;S.schedule=v.schedule||{};
-    notifyChanges();after();render();
+    S.srcs=v.srcs||{};S.reports=v.reports||{};S.history=v.history||{};S.proposal=v.proposal||null;S.schedule=v.schedule||{};
+    notifyChanges();after();saveFriends();render();
   },err=>{S.loaded=true;S.err=err?.message||'Connection error. Check your internet or database rules.';render()}));
   let first=true;
   roomUns.push(onValue(ref(db,`userDiary/${uid()}/${id}`),s=>{
@@ -343,6 +347,14 @@ function enter(id){
     if(first){first=false;migrateDiary()}
     render();
   },()=>{}));
+}
+let frDone='';
+function saveFriends(){
+  if(!S.me||!S.room||!S.players[S.me.pid])return;
+  const pl=plist(),k=S.roomId+':'+pl.map(p=>p.id).join(',');
+  if(k===frDone)return;frDone=k;
+  const ups={};pl.forEach(p=>{if(p.uid&&p.uid!==uid())ups[`friends/${uid()}/${p.uid}`]={name:p.name}});
+  if(Object.keys(ups).length)update(ref(db),ups).catch(()=>{});
 }
 function migrateDiary(){ /* import entries saved on-device by the previous version */
   const k=`sos:diary:${S.roomId}:${S.me?.pid}`;const old=lsGet(k,[]);
@@ -385,6 +397,7 @@ function after(){
   const g=S.game,key=g.status+g.round;
   if(S.lastStatus&&S.lastStatus!==key&&S.tab==='home'&&['answering','revealed','study'].includes(g.status))S.tab='game';
   S.lastStatus=key;
+  const ak=g.status+g.round;if(S.lastAK&&S.lastAK!==ak&&g.status==='answering')alertNow(`Round ${g.round} started`);S.lastAK=ak;
 }
 
 /* ---------- game transactions ---------- */
@@ -535,6 +548,9 @@ const gameLabel=g=>{g=g||{};const n=g.round||0;
   if(g.status==='study')return `Study challenge`;
   if(g.status==='lobby'||g.status==='topic')return n?`Choosing topic · round ${n+1}`:'In lobby';
   return 'Idle'};
+function invBanner(){
+  return Object.entries(S.invites||{}).filter(([c])=>!S.ug[c]).map(([c,v])=>`<div class="card" style="border-color:var(--p1)"><div class="sp"><b>${esc(v.from||'A friend')}</b> <span class="mut sm">invited you to</span> <b>${esc(v.name||'a group')}</b></div><div class="btnrow" style="margin-top:10px"><button class="btn sm ok" data-act="acceptinv" data-id="${esc(c)}">Join</button><button class="btn sm ghost" data-act="declineinv" data-id="${esc(c)}">Decline</button></div></div>`).join('');
+}
 function dashV(){
   const ids=Object.keys(S.ug);
   const cards=ids.map(id=>{
@@ -552,6 +568,7 @@ function dashV(){
     <div class="hb"><button class="ib" data-act="theme" aria-label="Theme">${ic('<path d="M21 13A9 9 0 1 1 11 3a7 7 0 0 0 10 10z"/>')}</button>
     <button class="ib" data-act="signout" aria-label="Sign out">${ic('<path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/>')}</button></div></header>
   ${S.user.isAnonymous?`<div class="card sm" style="padding:12px 14px"><div class="row"><span class="sp mut">Guest login lives in this browser only.</span><button class="btn xs" data-act="upgrade">Link Google</button></div></div>`:''}
+  ${invBanner()}
   <h3 style="margin:6px 4px 10px">Active groups</h3>
   ${cards||`<div class="card"><div class="empty">No groups yet. Create one or join with a code.</div></div>`}
   <div class="btnrow" style="margin-top:6px"><button class="btn" data-act="newgroup">+ New group</button><button class="btn ghost" data-act="joingroup">Join with code</button></div>`;
@@ -606,12 +623,14 @@ function homeV(){
     <div class="xs mut">${o?esc(liveStatusText(p)):'Offline'+(pr?.lastSeen?' · '+ago(pr.lastSeen):'')}</div></div>
     <div style="text-align:right"><div style="font-weight:600">${fmt(st.per[i]?.today||0)}</div><div class="xs mut">today</div></div>
     ${canRemove?`<button type="button" class="iconbtn no" data-act="kick" data-pid="${p.id}" title="Remove player">${ic('<line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>')}</button>`:''}</div>`}).join('')}
-  ${pl.length<3?`<div class="row" style="margin-top:12px"><span class="xs mut sp">Friends join from their dashboard with code</span><button class="btn xs ghost" data-act="copy">${esc(S.roomId.toUpperCase())} · copy</button></div>`:''}</div>
+  ${pl.length<3?`<div class="row" style="margin-top:12px"><span class="xs mut sp">Share this 4-digit code</span><button class="btn xs ghost" data-act="copy">${esc(S.roomId.toUpperCase())} · copy</button></div>`:''}</div>
   <div class="trio"><div class="card"><h3>Group total</h3><div class="v">${fmt(st.group)}</div></div><div class="card"><h3>This week</h3><div class="v">${fmt(st.gweek)}</div></div><div class="card"><h3>Streak</h3><div class="v">${st.streak}<span class="sm mut"> d</span></div></div></div>
+  <button class="btn ghost" data-act="addfriend" style="margin-bottom:8px">+ Add friend to this group</button>
   <button class="btn ghost" data-act="log">+ Log a study session</button>`;
 }
 function gameV(){
   const st=S.game.status;
+  if(['lobby','topic'].includes(st)&&(S.game.studiedMins||0)>=720)return `<div class="card"><h2>Session complete</h2><p class="mut" style="margin:8px 0 14px">${Math.round(S.game.studiedMins/60)} hours of study logged in this game. Start a fresh game when you're ready.</p>${isHost()?'<button class="btn" data-act="reset">Start new game</button>':'<p class="xs mut">Ask the host to start a new game.</p>'}</div>`;
   if(['lobby','topic'].includes(st))return topicV();
   if(st==='answering')return answerV();
   if(st==='revealed')return revealV();
@@ -655,14 +674,17 @@ function revealV(){
   const g=S.game,pl=plist(),a=S.answers[akey()]||{};
   return `<div class="card"><div class="row"><h3>Round ${g.round} · ${esc(g.topic?.label||'')}</h3><div class="sp"></div><span class="tag ok">Revealed</span></div>
     <div style="margin:14px 0 4px">${pl.map((p,k)=>`<div class="rcard" style="--i:${k}">${av(p.id,32,true)}<span style="font-weight:500">${esc(p.name)}</span><b>${esc(a[p.id]??'—')}</b></div>`).join('')}</div></div>
-  <div class="card"><h2>You decide</h2><p class="mut" style="margin:6px 0 14px">Did all of you pick the same answer?</p>
-    <div class="btnrow"><button class="btn ok" data-act="result" data-k="match">✓ We matched</button><button class="btn ghost" data-act="result" data-k="study">No match · study</button></div></div>`;
+  ${(()=>{const sr=S.srcs[akey()]||{},vals=pl.map(p=>String(a[p.id]??'').trim().toLowerCase());
+    const allOpt=pl.length>=2&&pl.every(p=>sr[p.id]==='opt');
+    if(allOpt&&new Set(vals).size===1)return `<div class="card" style="border-color:var(--p1)"><h2>✓ Auto-matched</h2><p class="mut" style="margin:6px 0 14px">All three picked the same option.</p><button class="btn ok" data-act="result" data-k="match">Next topic</button></div>`;
+    if(allOpt&&S.config?.autoTimer!==false)return `<div class="card"><h2>No match</h2><p class="mut" style="margin:6px 0 14px">The options differ. Start the 1-hour study timer.</p><button class="btn" data-act="result" data-k="study">Start 1-hour timer</button></div>`;
+    return `<div class="card"><h2>Did it match?</h2><p class="mut" style="margin:6px 0 14px">Typed answers are judged by you.</p><div class="btnrow"><button class="btn ok" data-act="result" data-k="match">✓ We matched</button><button class="btn ghost" data-act="result" data-k="study">No match · 1h timer</button></div></div>`})()}`;
 }
 function studyV(){
   const g=S.game,pl=plist(),me=S.me.pid,host=isHost();
   const ss=pl.map(p=>sessOf(p.id)),all=ss.length>=2&&ss.every(s=>s==='completed'),my=sessOf(me);
   const L={none:['Not started',''],studying:['Studying','st'],completed:['Report saved','ok']};
-  return `<div class="card"><h3 id="cl">${mins()}-minute study challenge</h3><div class="clock" id="clock">--:--</div><div class="prog"><i id="cbar" style="width:0"></i></div></div>
+  return `<div class="card"><h3 id="cl">${mins()}-minute study challenge</h3><div class="clock" id="clock">--:--</div><div class="prog"><i id="cbar" style="width:0"></i></div><div class="btnrow" style="margin-top:12px"><button class="btn sm ghost" data-act="pip">Float timer</button><button class="btn sm ghost" data-act="stoptimer">Stop timer</button></div></div>
   <div class="card"><h3>Group study progress</h3>
   ${pl.map((p,i)=>`<div class="row pr">${av(p.id,32,true)}<span class="sp" style="font-weight:500">${esc(p.name)}</span><span class="pill ${L[ss[i]][1]}">${L[ss[i]][0]}</span></div>`).join('')}
   <div style="margin-top:16px">${my==='none'?`<button class="btn" data-act="begin">Start my timer</button>`:my==='studying'?`<button class="btn" data-act="report" data-r="${g.round}">Finish &amp; submit study report</button>`:`<button class="btn ghost" disabled>✓ Your report is saved</button>`}
@@ -676,6 +698,7 @@ function tick(){
   const cb=$('#cbar');if(cb)cb.style.width=Math.min(100,Math.max(0,100-ms/tot*100))+'%';
 }
 setInterval(tick,1000);
+setInterval(()=>{const g=S.game;if(g.status==='study'&&g.studyEndsAt&&now()>=g.studyEndsAt&&S.endKey!==g.studyEndsAt){S.endKey=g.studyEndsAt;alertNow('Study time is up. Submit your report.')}},1000);
 
 /* ---------- diary (private, synced under userDiary/<uid>/<group>) ---------- */
 function diaryV(){
@@ -796,7 +819,7 @@ function closeSheet(){
   setTimeout(()=>{if(!s.classList.contains('open'))s.innerHTML=''},280);render();
 }
 function newGroupSheet(){sheet(`<h2>New private group</h2><form data-form="create"><label>Group name</label><input name="room" maxlength="30" required placeholder="e.g. Study Squad"><label>Your name in this group</label><input name="me" maxlength="20" required value="${esc(savedName())}"><button class="btn" style="margin-top:18px">Create group</button></form>`)}
-function joinSheet(code=''){sheet(`<h2>Join a group</h2><p class="sm mut" style="margin:6px 0 0">Ask a friend for the group code (shown in their Room tab).</p><form data-form="join"><label>Group code</label><input name="code" maxlength="20" required value="${esc(code)}" autocapitalize="off" autocomplete="off" placeholder="e.g. k3m9xq2a"><label>Your name in this group</label><input name="me" maxlength="20" required value="${esc(savedName())}"><button class="btn" style="margin-top:18px">Join group</button></form>`)}
+function joinSheet(code=''){sheet(`<h2>Join a group</h2><p class="sm mut" style="margin:6px 0 0">Ask a friend for the group code (shown in their Room tab).</p><form data-form="join"><label>Group code</label><input name="code" maxlength="20" required value="${esc(code)}" autocapitalize="off" autocomplete="off" placeholder="e.g. 8496" inputmode="numeric"><label>Your name in this group</label><input name="me" maxlength="20" required value="${esc(savedName())}"><button class="btn" style="margin-top:18px">Join group</button></form>`)}
 function customSheet(){sheet(`<h2>Custom topic</h2><form data-form="custom"><label>Topic name</label><input name="name" maxlength="30" required placeholder="e.g. Periodic table"><label>Options (comma separated, optional)</label><textarea name="words" maxlength="400" placeholder="Hydrogen, Helium, Carbon, Oxygen…"></textarea><p class="xs mut" style="margin:6px 0 0">Leave empty for free-typing rounds. List the most common answers first; later rounds narrow towards your earlier answers.</p><button class="btn" style="margin-top:16px">Suggest this topic</button></form>`)}
 function reportSheet(key,round){
   const ses=round?S.sessions[key]?.[S.me.pid]:null;
@@ -816,17 +839,51 @@ function settingsSheet(){
   <label>Group code</label><div class="lnk">${esc(S.roomId)}</div>
   <div class="btnrow" style="margin-top:8px"><button type="button" class="btn sm ghost" data-act="copy">Copy code</button></div>
   <label>Group name</label><input name="room" value="${esc(S.room.name)}" maxlength="30" ${host?'':'disabled'}>
-  <label>Study challenge (minutes)</label><input name="mins" type="number" min="5" max="240" value="${mins()}" ${host?'':'disabled'}>
+  <label>Study timer</label><select name="auto" ${host?'':'disabled'}><option value="on" ${S.config?.autoTimer===false?'':'selected'}>On · starts automatically after a mismatch</option><option value="off" ${S.config?.autoTimer===false?'selected':''}>Off · no timer</option></select>
+  <label>Timer length (minutes)</label><input name="timer" type="number" min="5" max="720" value="${mins()}" ${host?'':'disabled'}>
+  
   ${host&&pl.length>1?`<label>Manage players</label><div>${pl.filter(p=>p.id!==S.me.pid).map(p=>`<div class="row pr" style="padding:8px 0">${av(p.id,28,true)}<span class="sp" style="font-weight:500">${esc(p.name)}</span><button type="button" class="btn xs ghost" style="color:var(--bad)" data-act="kick" data-pid="${p.id}">Remove</button></div>`).join('')}</div>`:''}
   ${host?`<button class="btn" style="margin-top:20px">Save settings</button><button type="button" class="btn ghost" data-act="reset">Reset game (keeps reports)</button>`:''}
   <button type="button" class="btn ghost" data-act="dash">Switch group</button>
   <button type="button" class="btn ghost" style="color:var(--bad)" data-act="leavegroup">Leave this group</button></form>`);
 }
 
+let AC=null,pipEl=null,pipTimer=0;
+function unlockAudio(){try{AC=AC||new (window.AudioContext||window.webkitAudioContext)();if(AC.state==='suspended')AC.resume()}catch{}}
+function beep(){try{if(!AC)return;const o=AC.createOscillator(),g=AC.createGain();o.connect(g);g.connect(AC.destination);o.frequency.value=880;g.gain.setValueAtTime(.15,AC.currentTime);g.gain.exponentialRampToValueAtTime(.001,AC.currentTime+.5);o.start();o.stop(AC.currentTime+.5)}catch{}}
+function alertNow(msg){beep();try{navigator.vibrate?.([250,120,250])}catch{}toast(msg);
+  if('Notification' in window&&Notification.permission==='granted'&&document.hidden){try{new Notification('Same or Study',{body:msg})}catch{}}}
+async function floatTimer(){
+  if(!document.pictureInPictureEnabled)return toast('Floating window is not supported in this browser');
+  try{
+    const c=document.createElement('canvas');c.width=320;c.height=180;const x=c.getContext('2d');
+    const v=document.createElement('video');v.muted=true;v.playsInline=true;
+    v.style.cssText='position:fixed;width:1px;height:1px;opacity:0;pointer-events:none;bottom:0;right:0';
+    document.body.appendChild(v);v.srcObject=c.captureStream(2);
+    const draw=()=>{const s=Math.max(0,Math.ceil(((S.game.studyEndsAt||0)-now())/1000));
+      x.fillStyle='#111';x.fillRect(0,0,320,180);x.fillStyle='#fff';x.textAlign='center';x.font='bold 64px system-ui';
+      x.fillText(`${pad(Math.floor(s/60))}:${pad(s%60)}`,160,105);x.font='16px system-ui';x.fillStyle='#aaa';
+      x.fillText(S.game.status==='study'?'Study time':'Game',160,145)};
+    draw();clearInterval(pipTimer);pipTimer=setInterval(draw,500);
+    await v.play();await v.requestPictureInPicture();pipEl=v;v.addEventListener('leavepictureinpicture',stopFloat);
+  }catch(e){stopFloat();toast('Could not open floating window. Tap the button again')}
+}
+function stopFloat(){clearInterval(pipTimer);if(pipEl){pipEl.srcObject=null;pipEl.remove();pipEl=null}}
+
 /* ---------- actions ---------- */
 const doProposal=t=>{ if(!S.me)return;
   set(ref(db,base()+'/proposal'),{...t,by:S.me.pid,votes:{[S.me.pid]:true},at:now()}).catch(()=>toast('Could not send suggestion'))};
 const ACT={
+  pip:()=>floatTimer(),
+  stoptimer:async()=>{if(!(await askConfirm('Stop timer?','The study challenge ends now and everyone goes back to topics.','Stop')))return;
+    runTransaction(ref(db,base()+'/game'),c=>{if(!c||c.status!=='study')return;return{...c,status:'topic'}}).catch(()=>toast('Could not stop'))},
+  addfriend:()=>{const pl=plist(),fr=Object.entries(S.friends||{}).filter(([u])=>!pl.some(p=>p.uid===u));
+    sheet(`<h2>Add a friend</h2><p class="sm mut" style="margin:6px 0 14px">They get an invite on their dashboard. One tap to join.</p>${fr.length?fr.map(([u,f])=>`<div class="row pr" style="padding:8px 0">${avN(f.name,0,30)}<span class="sp" style="font-weight:500">${esc(f.name)}</span><button type="button" class="btn xs" data-act="invite" data-uid="${esc(u)}">Invite</button></div>`).join(''):'<div class="empty">No friends yet. Friends appear after you play a group together.</div>'}`)},
+  invite:async t=>{if(plist().length>=3)return toast('Group is full (3 players)');const u=t.dataset.uid;
+    try{await set(ref(db,`invites/${u}/${S.roomId}`),{name:S.room.name,from:pname(S.me.pid),at:Date.now()});toast(`Invited ${(S.friends[u]||{}).name||'friend'}`);closeSheet()}catch{toast('Could not send invite')}},
+  acceptinv:async t=>{const c=t.dataset.id;const name=savedName()||(S.user.displayName||'Player').split(' ')[0];
+    try{await joinAs(c,name,null);await remove(ref(db,`invites/${uid()}/${c}`))}catch{toast('Could not join. Group may be full')}},
+  declineinv:t=>remove(ref(db,`invites/${uid()}/${t.dataset.id}`)).catch(()=>{}),
   tab:t=>{S.tab=t.dataset.t;render();window.scrollTo(0,0)},
   theme:()=>setTheme(document.documentElement.dataset.theme==='dark'?'light':'dark'),
   retry:()=>enter(S.roomId),
@@ -861,24 +918,27 @@ const ACT={
     let w=normAns($('#freeAns')?.value||S.pick);
     if(!w)return toast('Pick an option or type your answer');
     const canon=arr(g.options).find(o=>o.toLowerCase()===w.toLowerCase());if(canon)w=canon;
-    S.busy.lock=true;const key=akey();
+    S.busy.lock=true;const key=akey();const src=($('#freeAns')?.value||'').trim()?'txt':'opt';
     runTransaction(ref(db,`${base()}/answers/${key}/${S.me.pid}`),v=>v==null?w:undefined)
-      .then(()=>{S.pick=null;pres(true,'locked')}).catch(()=>toast('Could not lock in. Check connection')).finally(()=>{S.busy.lock=false});
+      .then(()=>{S.pick=null;set(ref(db,`${base()}/srcs/${key}/${S.me.pid}`),src).catch(()=>{});pres(true,'locked')}).catch(()=>toast('Could not lock in. Check connection')).finally(()=>{S.busy.lock=false});
   },
   reveal:()=>{
     const g=S.game,r=g.round,a=S.answers[akey()]||{},pl=plist();
     if(S.busy.rev)return;
     if(pl.length<2||!pl.every(p=>a[p.id]!==undefined))return toast('Waiting for everyone to lock in');
     const picks=pl.map(p=>a[p.id]),am={},nm={};pl.forEach(p=>{am[p.id]=a[p.id];nm[p.id]=p.name});
+    const sr=S.srcs[akey()]||{},allOpt=pl.length>=2&&pl.every(p=>sr[p.id]==='opt'),mism=allOpt&&new Set(pl.map(p=>String(a[p.id]??'').trim().toLowerCase())).size>1&&S.config?.autoTimer!==false;
     S.busy.rev=true;
-    runTransaction(ref(db,base()+'/game'),c=>{if(!c||c.status!=='answering'||c.round!==r)return;return{...c,status:'revealed',revealedAt:now(),trail:[...arr(c.trail).map(x=>arr(x)),picks]}})
-      .then(res=>{if(res.committed)set(ref(db,`${base()}/history/${g.gid}_r${r}`),{round:r,topic:g.topic?.label||'',options:arr(g.options),answers:am,names:nm,at:serverTimestamp()})})
+    runTransaction(ref(db,base()+'/game'),c=>{if(!c||c.status!=='answering'||c.round!==r)return;const bs={...c,revealedAt:now(),trail:[...arr(c.trail).map(x=>arr(x)),picks]};
+        if(mism)return{...bs,status:'study',result:'study',studyStartedAt:now(),studyEndsAt:now()+mins()*60000,studiedMins:(c.studiedMins||0)+mins()};
+        return{...bs,status:'revealed'}})
+      .then(res=>{if(res.committed)set(ref(db,`${base()}/history/${g.gid}_r${r}`),{round:r,topic:g.topic?.label||'',options:arr(g.options),answers:am,names:nm,at:serverTimestamp(),...(mism?{result:'study'}:{})})})
       .catch(()=>toast('Could not reveal. Try again')).finally(()=>{S.busy.rev=false});
   },
   result:t=>{
     const k=t.dataset.k,g=S.game,r=g.round,gid=g.gid;if(S.busy.res)return;S.busy.res=true;
     runTransaction(ref(db,base()+'/game'),c=>{if(!c||c.status!=='revealed'||c.round!==r)return;
-      return k==='match'?{...c,status:'topic',result:'matched'}:{...c,status:'study',result:'study',studyStartedAt:now(),studyEndsAt:now()+mins()*60000}})
+      return k==='match'?{...c,status:'topic',result:'matched'}:{...c,status:'study',result:'study',studyStartedAt:now(),studyEndsAt:now()+mins()*60000,studiedMins:(c.studiedMins||0)+mins()}})
       .then(res=>{if(res.committed&&gid)update(ref(db,`${base()}/history/${gid}_r${r}`),{result:k==='match'?'matched':'study'})})
       .catch(()=>toast('Could not save result')).finally(()=>{S.busy.res=false});
   },
@@ -936,11 +996,12 @@ async function joinAs(code,name,pid){
   await set(ref(db,`userGroups/${u}/${code}`),pid);
   closeSheet();enter(code);S.tab='home';
 }
+async function newCode(){for(let i=0;i<40;i++){const c=String(1000+Math.floor(Math.random()*9000));if(!(await get(ref(db,'rooms/'+c+'/meta'))).exists())return c}throw new Error('no free code')}
 const FORMS={
   guest:async f=>{const n=(new FormData(f).get('gname')||'').trim();if(!n)return;localStorage.setItem('sos:name',n);S.loginErr='';
     try{await signInAnonymously(auth)}catch(e){S.loginErr=authMsg(e);render()}},
   create:async f=>{
-    if(S.busy.create)return;const d=Object.fromEntries(new FormData(f)),id=rid(8),pid=uid(),t=Date.now(),rn=(d.room||'').trim(),mn=(d.me||'').trim();
+    if(S.busy.create)return;const d=Object.fromEntries(new FormData(f)),id=await newCode(),pid=uid(),t=Date.now(),rn=(d.room||'').trim(),mn=(d.me||'').trim();
     if(!rn||!mn)return;S.busy.create=true;
     try{
       await set(ref(db,'rooms/'+id),{meta:{name:rn,hostId:pid,createdAt:t},players:{[pid]:{name:mn,joinedAt:t,uid:pid}},config:{studyMinutes:60},game:{status:'lobby',round:0}});
@@ -998,11 +1059,11 @@ const FORMS={
   settings:f=>{
     if(!isHost())return closeSheet();
     const d=Object.fromEntries(new FormData(f));
-    update(ref(db,base()),{'meta/name':(d.room||'').trim()||S.room.name,'config/studyMinutes':Math.min(240,Math.max(5,+d.mins||60))})
+    update(ref(db,base()),{'meta/name':(d.room||'').trim()||S.room.name,'config/timerMins':Math.min(720,Math.max(5,+d.timer||60)),'config/autoTimer':d.auto!=='off'})
       .then(()=>{toast('Settings saved');closeSheet()}).catch(()=>toast('Could not save settings'));
   }
 };
-document.addEventListener('click',e=>{const t=e.target.closest('[data-act]');if(t)ACT[t.dataset.act]?.(t)});
+document.addEventListener('click',e=>{unlockAudio();const t=e.target.closest('[data-act]');if(t)ACT[t.dataset.act]?.(t)});
 document.addEventListener('submit',e=>{e.preventDefault();document.activeElement?.blur?.();FORMS[e.target.dataset.form]?.(e.target)});
 document.addEventListener('change',e=>{const t=e.target;if(t.dataset?.change==='ddate'){S.diaryDate=t.value;t.blur();render()}});
 if(!db||!authOk||!auth)render();

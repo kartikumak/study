@@ -143,6 +143,12 @@ input:focus,textarea:focus{border-color:var(--ink);box-shadow:var(--ring)}textar
 .lnk{font-size:12px;background:var(--soft);padding:10px 12px;border-radius:12px;word-break:break-all;color:var(--mut);user-select:all}
 #toast{position:fixed;left:50%;bottom:96px;transform:translate(-50%,16px);background:var(--ink);color:var(--bg);padding:9px 16px;border-radius:99px;font-size:13px;font-weight:500;opacity:0;transition:.24s;z-index:30;pointer-events:none;max-width:90vw;box-shadow:0 8px 24px rgba(0,0,0,.22)}#toast.show{opacity:1;transform:translate(-50%,0)}
 .think::after{content:"";animation:dt 1.2s infinite}@keyframes dt{0%{content:"."}33%{content:".."}66%{content:"..."}}
+.gcard{cursor:pointer;transition:transform .14s,border-color .15s}.gcard:hover{border-color:color-mix(in srgb,var(--ink) 25%,transparent)}.gcard:active{transform:scale(.99)}
+.mini{display:flex;align-items:flex-end;gap:6px;height:70px}.mini i{flex:1;background:var(--p0);border-radius:5px 5px 2px 2px;transition:height .5s}
+.mini-l{display:flex;gap:6px;margin-top:4px}.mini-l span{flex:1;text-align:center;font-size:10px;color:var(--mut)}
+code{background:var(--soft);padding:1px 5px;border-radius:5px;font-size:12px}
+nav button{font-size:10px}.opt .sp{overflow:hidden;text-overflow:ellipsis}
+.card.sm{font-size:13px}
 </style>
 </head>
 <body>
@@ -150,7 +156,8 @@ input:focus,textarea:focus{border-color:var(--ink);box-shadow:var(--ring)}textar
 <script src="config.js"></script>
 <script type="module">
 import {initializeApp} from "https://www.gstatic.com/firebasejs/10.14.1/firebase-app.js";
-import {getDatabase,ref,onValue,set,update,push,remove,runTransaction,onDisconnect,serverTimestamp} from "https://www.gstatic.com/firebasejs/10.14.1/firebase-database.js";
+import {getDatabase,ref,onValue,get,set,update,push,remove,runTransaction,onDisconnect,serverTimestamp} from "https://www.gstatic.com/firebasejs/10.14.1/firebase-database.js";
+import {getAuth,onAuthStateChanged,GoogleAuthProvider,signInWithPopup,signInWithRedirect,signInAnonymously,signOut,linkWithPopup} from "https://www.gstatic.com/firebasejs/10.14.1/firebase-auth.js";
 
 /* ---------- helpers ---------- */
 const $=s=>document.querySelector(s);
@@ -168,207 +175,237 @@ const toast=m=>{const t=$('#toast');if(!t)return;t.textContent=m;t.className='sh
 const setTheme=t=>{document.documentElement.dataset.theme=t;localStorage.setItem('sos:theme',t);const m=$('meta[name=theme-color]');if(m)m.content=t==='dark'?'#0c0c0f':'#f7f6f2'};
 try{setTheme(localStorage.getItem('sos:theme')||(matchMedia('(prefers-color-scheme:dark)').matches?'dark':'light'));}catch{setTheme('light')}
 
-/* ---------- firebase & state ---------- */
+/* ---------- config ---------- */
 const cfg=window.SOS_CONFIG||{};
-let db=null;
-if(cfg.databaseURL&&!/PASTE/i.test(cfg.databaseURL)){try{db=getDatabase(initializeApp({databaseURL:cfg.databaseURL}))}catch(e){console.error(e)}}
+let db=null,auth=null;
+const dbOk=!!(cfg.databaseURL&&!/PASTE/i.test(cfg.databaseURL));
+const authOk=!!(cfg.apiKey&&cfg.authDomain&&!/PASTE/i.test(cfg.apiKey));
+if(dbOk){try{const app=initializeApp({apiKey:cfg.apiKey,authDomain:cfg.authDomain,projectId:cfg.projectId,appId:cfg.appId,databaseURL:cfg.databaseURL});db=getDatabase(app);if(authOk)auth=getAuth(app)}catch(e){console.error(e)}}
 
-const DEF=["Pizza","Biryani","Burger","Pasta","Sushi","Momos","Sandwich","Noodles","Tacos","Dosa"];
-const PRESETS={
-  food:{label:"Food & Treats",items:["Pizza","Biryani","Burger","Pasta","Sushi","Momos","Sandwich","Noodles","Tacos","Dosa"]},
-  study:{label:"Study Sprints",items:["Physics","Maths","Chemistry","Coding","Revision","Mock Test","Notes","Reading","PYQs","Flashcards"]},
-  movies:{label:"Movie / Chill",items:["Sci-Fi","Thriller","Comedy","Anime","Action","Horror","Documentary","Mystery","Drama","Rewatch"]},
-  hangout:{label:"Hangout Spots",items:["Cafe","Street Food","Bowling","Gaming","Park Walk","Mall","Drive","Board Games","Chai Spot","Home"]}
+/*BANK_START*/
+/* Word banks. Format: "Word~tag tag tag" ordered by how commonly people pick them.
+   To add a category: add one BANKS entry and one CATS row. Tags drive the "related options" matching. */
+const mk=s=>s.split('|').map((x,i)=>{const [w,t='']=x.split('~');return{w:w.trim(),t:t.trim().split(/\s+/).filter(Boolean),i}});
+const nums=n=>{const pop=[7,3,5,10,1,2,9,4,8,6,100,50,69,42,13,21,11,77,99,25,17,33,88,24,12];
+  const seq=[...new Set([...pop.filter(x=>x<=n),...Array.from({length:n},(_,i)=>i+1)])];
+  const pr=k=>{if(k<2)return false;for(let j=2;j*j<=k;j++)if(k%j===0)return false;return true};
+  return seq.map((k,i)=>({w:String(k),i,t:[k%2?'odd':'even','d'+Math.floor((k-1)/10),pr(k)?'prime':'',Number.isInteger(Math.sqrt(k))?'square':''].filter(Boolean)}))};
+const BANKS={
+fruits:mk("Apple~red temperate round|Banana~yellow tropical long|Mango~yellow tropical sweet|Orange~citrus orange round|Grapes~vine small purple|Strawberry~red berry small|Watermelon~green melon big|Pineapple~yellow tropical sour|Papaya~orange tropical|Kiwi~green small sour|Pomegranate~red small|Lemon~citrus yellow sour|Guava~green tropical|Cherry~red small berry|Peach~orange stone|Pear~green temperate|Blueberry~berry small blue|Coconut~tropical brown|Litchi~tropical red small|Plum~stone purple"),
+vegetables:mk("Potato~root|Tomato~red|Onion~root|Carrot~root orange|Spinach~leafy green|Cabbage~leafy green|Cauliflower~white flower|Broccoli~green flower|Peas~green small|Cucumber~green|Brinjal~purple|Capsicum~colourful|Okra~green|Garlic~root white|Pumpkin~orange big|Radish~root white|Corn~yellow|Beetroot~root red"),
+animals:mk("Dog~pet mammal|Cat~pet mammal|Lion~wild mammal big|Elephant~wild mammal big|Tiger~wild mammal big|Horse~farm mammal|Cow~farm mammal|Monkey~wild mammal|Rabbit~pet mammal small|Parrot~bird pet|Eagle~bird wild|Snake~reptile wild|Dolphin~sea mammal|Shark~sea fish|Giraffe~wild mammal big|Bear~wild mammal|Fish~sea pet|Panda~wild mammal"),
+countries:mk("India~asia|USA~america|China~asia|Japan~asia|Russia~europe asia|Brazil~america|Australia~oceania|France~europe|Germany~europe|UK~europe|Canada~america|Italy~europe|Egypt~africa|Pakistan~asia|South Africa~africa|Nepal~asia|Switzerland~europe|UAE~asia"),
+cities:mk("Mumbai~india|Delhi~india|Paris~europe|London~europe|New York~america|Tokyo~asia|Dubai~asia|Bangalore~india|Kolkata~india|Sydney~oceania|Singapore~asia|Rome~europe|Chennai~india|Los Angeles~america|Beijing~asia|Berlin~europe|Hyderabad~india|Moscow~europe"),
+sports:mk("Cricket~team bat india|Football~team ball|Tennis~racket solo|Badminton~racket solo|Basketball~team ball|Hockey~team india|Chess~mind solo|Swimming~water solo|Kabaddi~team india|Volleyball~team ball|Boxing~combat solo|Golf~solo ball|Table Tennis~racket solo|Athletics~solo|Baseball~team bat|Rugby~team ball|Cycling~solo|Wrestling~combat solo"),
+movies:mk("Avengers~hero hollywood|Titanic~romance hollywood|Inception~scifi hollywood|3 Idiots~bollywood comedy|Sholay~bollywood classic|Dangal~bollywood sports|Interstellar~scifi hollywood|Joker~dark hollywood|Batman~hero hollywood|Spider-Man~hero hollywood|KGF~south action|Baahubali~south action|Frozen~animation|Lion King~animation|Harry Potter~fantasy hollywood|Iron Man~hero hollywood|Dhoom~bollywood action|Avatar~scifi hollywood"),
+colours:mk("Red~warm|Blue~cool|Green~cool|Yellow~warm|Black~neutral|White~neutral|Orange~warm|Pink~warm|Purple~cool|Brown~neutral warm|Grey~neutral|Violet~cool|Gold~warm|Silver~neutral|Cyan~cool|Maroon~warm"),
+food:mk("Pizza~italian fast|Biryani~indian rice|Burger~fast|Pasta~italian|Noodles~chinese|Dosa~indian south|Samosa~indian snack|Fries~fast snack|Sandwich~fast|Momos~snack chinese|Paneer~indian|Rice~indian rice|Chocolate~sweet|Ice Cream~sweet|Sushi~japanese|Tacos~mexican|Roti~indian|Maggi~snack"),
+drinks:mk("Water~plain|Tea~hot|Coffee~hot|Milk~plain|Juice~cold fruit|Coke~cold soda|Lassi~cold indian|Lemonade~cold fruit|Pepsi~cold soda|Smoothie~cold fruit|Milkshake~cold sweet|Sprite~cold soda|Cold Coffee~cold|Coconut Water~plain cold|Buttermilk~cold indian|Hot Chocolate~hot sweet"),
+professions:mk("Doctor~medical|Engineer~tech|Teacher~education|Lawyer~law|Pilot~travel|Police~service|Farmer~outdoor|Chef~food|Scientist~tech science|Artist~creative|Actor~creative|Soldier~service|Nurse~medical|Banker~business|Driver~travel|Singer~creative"),
+science:mk("Physics~subject|Chemistry~subject|Biology~subject|Atom~physics small|Gravity~physics|Energy~physics|Cell~biology small|DNA~biology small|Oxygen~chemistry gas|Hydrogen~chemistry gas|Electron~physics small|Force~physics|Light~physics|Magnet~physics|Planet~space|Gold~chemistry metal|Water~chemistry|Sun~space"),
+body:mk("Heart~organ|Brain~organ|Eye~sense face|Hand~limb|Leg~limb|Lungs~organ|Skin~outer|Nose~sense face|Ear~sense face|Liver~organ|Kidney~organ|Bone~inner|Tooth~face|Stomach~organ|Blood~inner|Tongue~sense face"),
+tech:mk("Phone~device|Laptop~device|Internet~network|WiFi~network|AI~software|Google~company software|Apple~company device|Computer~device|Robot~hardware|Camera~device|Bluetooth~network|Android~software|Python~software code|Windows~software|Keyboard~hardware|Mouse~hardware"),
+num9:nums(9),num10:nums(10),num100:nums(100)
 };
-const DIARY_TAGS=["@productive","@deepfocus","@sleepy","@notsoproductive","@distracted","@energized","@stressed"];
+const CATS=[['fruits','🍎','Fruits'],['vegetables','🥕','Vegetables'],['animals','🐯','Animals'],['countries','🌍','Countries'],['cities','🏙️','Cities'],['sports','⚽','Sports'],['movies','🎬','Movies'],['colours','🎨','Colours'],['food','🍕','Food'],['drinks','🥤','Drinks'],['professions','👩‍⚕️','Professions'],['science','🔬','Science'],['body','🫀','Human Body'],['tech','💻','Technology'],['num9','9️⃣','Numbers 1–9'],['num10','🔟','Numbers 1–10'],['num100','💯','Numbers 1–100'],['random','🎲','Random'],['custom','✏️','Custom topic']].map(([id,icon,label])=>({id,icon,label}));
+const SIZES=[10,8,6,5,4,3];
+const getBank=t=>t&&t.custom&&arr(t.custom).length?arr(t.custom).map((w,i)=>({w,t:[],i})):(t&&BANKS[t.id])||[];
+const sim=(a,b)=>{if(a.t.length&&b.t.length){const i=a.t.filter(x=>b.t.includes(x)).length;return i/(a.t.length+b.t.length-i)}return 1/(1+Math.abs(a.i-b.i))};
+/* Round N options: scored by similarity to every earlier answer on this topic (recent rounds weigh more), shrinking 10→8→6→5→4→3. */
+function genOptions(topic,trail,depth){
+  const bank=getBank(topic);if(!bank.length)return [];
+  const n=Math.min(SIZES[Math.min(depth,5)],bank.length);
+  trail=arr(trail);
+  if(!trail.length)return bank.slice(0,n).map(x=>x.w);
+  const low=s=>String(s).trim().toLowerCase();
+  const sc=bank.map(c=>{let s=-c.i*.002;
+    trail.forEach((r,ri)=>{const w=1+ri*.6;arr(r).forEach(a=>{
+      const b=bank.find(x=>low(x.w)===low(a));
+      if(b)s+=w*(b===c?1.5:sim(c,b));else if(low(c.w)[0]===low(a)[0])s+=w*.1;
+    })});
+    return{c,s}});
+  return sc.sort((x,y)=>y.s-x.s).slice(0,n).map(x=>x.c.w);
+}
+/*BANK_END*/
+const pickRandom=()=>{const c=CATS.filter(x=>BANKS[x.id]&&!/^num/.test(x.id));const x=c[Math.floor(Math.random()*c.length)];return{id:x.id,label:'🎲 '+x.label}};
+const normAns=s=>{s=String(s||'').trim().replace(/\s+/g,' ').slice(0,30);return s?s[0].toUpperCase()+s.slice(1):''};
+const DAYN=['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
+const QUICK_TAGS=['#Revision','#MockTest','#DifficultTopic','#Backlog','#Productive','#Distracted'];
+const lsGet=(k,d)=>{try{return JSON.parse(localStorage.getItem(k))??d}catch{return d}};
 
-const S={
-  roomId:'',me:null,loaded:false,err:null,room:null,players:{},presence:{},config:{},
-  game:{status:'lobby',round:0},answers:{},sessions:{},reports:{},suggestions:{},
-  connected:false,offset:0,tab:'home',pick:null,pickRound:0,subj:'all',hist:'all',histN:20,
-  prevPlayers:null,prevOnline:null,busy:{},diaryTags:['@productive'],diaryFilter:'all'
-};
+/* ---------- state ---------- */
+const S={user:null,authReady:false,authFail:'',ug:{},ugLoaded:false,ugErr:'',roomId:'',me:null,loaded:false,err:null,room:null,players:{},presence:{},config:{},
+  game:{status:'lobby',round:0},answers:{},sessions:{},reports:{},history:{},proposal:null,schedule:{},diary:{},
+  connected:false,offset:0,tab:'home',pick:null,subj:'all',hist:'all',histMode:'study',histN:20,prevPlayers:null,prevOnline:null,busy:{},
+  diaryTags:[],customTags:lsGet('sos:ctags',[]),diaryFilter:'all',diaryDate:'',planDays:[],reminder:null,loginErr:''};
+const D={};let dashUn={},roomUns=[],ugUn=null;
 const base=()=>`rooms/${S.roomId}`;
 const now=()=>Date.now()+S.offset;
 const plist=()=>Object.entries(S.players||{}).map(([id,p])=>({id,...p})).sort((a,b)=>(a.joinedAt||0)-(b.joinedAt||0));
 const pidx=id=>Math.max(0,plist().findIndex(p=>p.id===id));
 const pname=id=>S.players?.[id]?.name||'Player';
 const isHost=()=>S.room?.hostId===S.me?.pid;
-const opts=()=>{
-  const raw=S.config?.options;
-  if(!raw)return [...DEF];
-  const list=Array.isArray(raw)?raw:Object.keys(raw).sort((a,b)=>+a-+b).map(k=>raw[k]);
-  return list.length?list:[...DEF];
-};
-const opt=i=>opts()[i]||'—';
 const mins=()=>S.config?.studyMinutes||60;
-const link=()=>location.origin+location.pathname+'#'+S.roomId;
 const online=id=>S.presence?.[id]?.online===true;
+const akey=()=>`${S.game.gid||0}_r${S.game.round}`;
+const sessOf=id=>S.sessions[akey()]?.[id]?.status||'none';
+const inTopic=()=>['lobby','topic'].includes(S.game.status);
 const av=(id,sz,showDot=false)=>`<span class="avwrap"><span class="av c${pidx(id)%6}" ${sz?`style="width:${sz}px;height:${sz}px;font-size:${Math.round(sz/2.5)}px;border-radius:${Math.round(sz/3)}px"`:''}>${esc(pname(id)[0]||'?').toUpperCase()}</span>${showDot?`<i class="avdot ${online(id)?'on':''}"></i>`:''}</span>`;
-const saveId=()=>localStorage.setItem('sos:id:'+S.roomId,JSON.stringify(S.me));
-const savedName=()=>localStorage.getItem('sos:name')||'';
-
-const diaryKey=()=>`sos:diary:${S.roomId}:${S.me?.pid||'local'}`;
-const getDiary=()=>{try{return JSON.parse(localStorage.getItem(diaryKey())||'[]')}catch{return []}};
-const saveDiary=list=>{try{localStorage.setItem(diaryKey(),JSON.stringify(list))}catch{toast('Device storage full')}};
+const avN=(name,i,sz)=>`<span class="av c${i%6}" style="width:${sz}px;height:${sz}px;font-size:${Math.round(sz/2.5)}px;border-radius:${Math.round(sz/3)}px">${esc((name||'?')[0]).toUpperCase()}</span>`;
+const savedName=()=>localStorage.getItem('sos:name')||(S.user?.displayName||'').split(' ')[0]||'';
 const fmtStamp=ts=>{const d=new Date(ts);return d.toLocaleDateString('en',{day:'numeric',month:'short'})+' · '+d.toLocaleTimeString('en',{hour:'2-digit',minute:'2-digit'})};
+const uid=()=>S.user?.uid;
+const loading=m=>`<div class="center" style="text-align:center"><div class="mut think">${esc(m)}</div></div>`;
 
 function askConfirm(title,msg,okText='Confirm',danger=false){
   return new Promise(resolve=>{
     sheet(`<h2>${esc(title)}</h2><p class="mut" style="margin:8px 0 18px">${esc(msg)}</p>
-    <div class="btnrow">
-      <button type="button" class="btn ghost" id="mCancel">Cancel</button>
-      <button type="button" class="btn ${danger?'':'ok'}" style="${danger?'background:var(--bad);color:#fff':''}" id="mOk">${esc(okText)}</button>
-    </div>`);
-    const c=$('#mCancel'),o=$('#mOk');
-    if(c)c.onclick=()=>{closeSheet();resolve(false)};
-    if(o)o.onclick=()=>{closeSheet();resolve(true)};
+    <div class="btnrow"><button type="button" class="btn ghost" id="mCancel">Cancel</button>
+    <button type="button" class="btn ${danger?'':'ok'}" style="${danger?'background:var(--bad);color:#fff':''}" id="mOk">${esc(okText)}</button></div>`);
+    $('#mCancel').onclick=()=>{closeSheet();resolve(false)};
+    $('#mOk').onclick=()=>{closeSheet();resolve(true)};
   });
 }
 
-let unsub=null,hbTimer=null;
+/* ---------- auth & membership ---------- */
+const authMsg=e=>{const c=e?.code||'';
+  if(c==='auth/operation-not-allowed')return 'This sign-in method is not enabled in Firebase → Authentication → Sign-in method.';
+  if(c==='auth/unauthorized-domain')return 'Add this website’s domain in Firebase → Authentication → Settings → Authorized domains.';
+  if(c==='auth/popup-closed-by-user'||c==='auth/cancelled-popup-request')return '';
+  if(c==='auth/credential-already-in-use')return 'That Google account already exists. Sign out and sign in with Google instead.';
+  return e?.message||'Sign-in failed';};
+if(auth){
+  setTimeout(()=>{if(!S.authReady){S.authFail='Could not reach Firebase Auth. Check your internet and config.js.';render()}},10000);
+  onAuthStateChanged(auth,u=>{
+    S.user=u;S.authReady=true;S.authFail='';
+    if(u)attachUser(u);else detachAll();
+    render();
+  });
+}
+function detachAll(){
+  if(ugUn){try{ugUn()}catch{}ugUn=null}
+  leaveRoomListeners();Object.keys(dashUn).forEach(detachDash);
+  Object.assign(S,{ug:{},ugLoaded:false,roomId:'',me:null,initDone:false,room:null});
+}
+function attachUser(u){
+  if(ugUn)try{ugUn()}catch{}
+  S.ugLoaded=false;S.ugErr='';
+  setTimeout(()=>{if(!S.ugLoaded){S.ugErr='Could not load your groups. Check your connection and database rules.';render()}},10000);
+  ugUn=onValue(ref(db,'userGroups/'+u.uid),s=>{
+    S.ug=s.val()||{};S.ugLoaded=true;S.ugErr='';
+    if(S.roomId){const pid=S.ug[S.roomId];S.me=pid?{pid}:null}
+    if(!S.initDone){S.initDone=true;boot()}
+    syncDash();render();
+  },e=>{S.ugLoaded=true;S.ugErr=e?.message||'Permission denied';render()});
+}
+function boot(){
+  const h=location.hash.slice(1);
+  if(h){history.replaceState(null,'',location.pathname+location.search);
+    if(S.ug[h]){enter(h);return}
+    setTimeout(()=>joinSheet(h),400);return}
+  const last=localStorage.getItem('sos:open');
+  if(last&&S.ug[last])enter(last);
+}
+
+/* ---------- dashboard watchers (summary only: meta, players, presence, game) ---------- */
+function detachDash(id){(dashUn[id]||[]).forEach(f=>{try{f()}catch{}});delete dashUn[id]}
+let dashRaf=0;const dashRender=()=>{cancelAnimationFrame(dashRaf);dashRaf=requestAnimationFrame(render)};
+function syncDash(){
+  if(S.roomId||!db||!S.user){Object.keys(dashUn).forEach(detachDash);return}
+  Object.keys(dashUn).forEach(id=>{if(!S.ug[id])detachDash(id)});
+  Object.keys(S.ug).forEach(id=>{
+    if(dashUn[id])return;D[id]=D[id]||{};
+    dashUn[id]=['meta','players','presence','game'].map(k=>onValue(ref(db,`rooms/${id}/${k}`),s=>{D[id][k]=s.val();D[id].ok=1;dashRender()},()=>{D[id].ok=1;D[id].err=1;dashRender()}));
+  });
+}
+
+/* ---------- room listeners ---------- */
+function leaveRoomListeners(){roomUns.forEach(f=>{try{f()}catch{}});roomUns=[]}
 function enter(id){
-  S.roomId=id;S.loaded=false;S.err=null;S.room=null;S.presOn=false;S.lastStatus=null;S.me=null;
-  S.prevPlayers=null;S.prevOnline=null;
-  if(unsub)try{unsub()}catch{};unsub=null;
-  if(!id||!db){render();return}
-  localStorage.setItem('sos:last',id);
-  try{S.me=JSON.parse(localStorage.getItem('sos:id:'+id)||'null')}catch{}
-  unsub=onValue(ref(db,'rooms/'+id),snap=>{
+  leaveRoomListeners();
+  Object.assign(S,{roomId:id,loaded:false,err:null,room:null,presOn:false,lastStatus:null,prevPlayers:null,prevOnline:null,pick:null,reminder:null,
+    players:{},presence:{},config:{},game:{status:'lobby',round:0},answers:{},sessions:{},reports:{},history:{},proposal:null,schedule:{},diary:{}});
+  if(!id){S.me=null;localStorage.removeItem('sos:open');syncDash();render();return}
+  localStorage.setItem('sos:open',id);
+  S.me=S.ug[id]?{pid:S.ug[id]}:null;
+  syncDash();
+  roomUns.push(onValue(ref(db,'rooms/'+id),snap=>{
     const v=snap.val()||{};
     S.loaded=true;S.err=null;
-    S.room=v.meta||null;
-    S.players=v.players||{};
-    S.presence=v.presence||{};
-    S.config=v.config||{};
-    S.game=v.game||{status:'lobby',round:0};
-    S.answers=v.answers||{};
-    S.sessions=v.sessions||{};
-    S.reports=v.reports||{};
-    S.suggestions=v.suggestions||{};
-    notifyChanges();
-    after();
+    S.room=v.meta||null;S.players=v.players||{};S.presence=v.presence||{};S.config=v.config||{};
+    S.game=v.game||{status:'lobby',round:0};S.answers=v.answers||{};S.sessions=v.sessions||{};
+    S.reports=v.reports||{};S.history=v.history||{};S.proposal=v.proposal||null;S.schedule=v.schedule||{};
+    notifyChanges();after();render();
+  },err=>{S.loaded=true;S.err=err?.message||'Connection error. Check your internet or database rules.';render()}));
+  let first=true;
+  roomUns.push(onValue(ref(db,`userDiary/${uid()}/${id}`),s=>{
+    S.diary=s.val()||{};
+    if(first){first=false;migrateDiary()}
     render();
-  },err=>{
-    S.loaded=true;
-    S.err=err?.message||'Connection error. Check your internet or Firebase rules.';
-    render();
-  });
+  },()=>{}));
 }
-
+function migrateDiary(){ /* import entries saved on-device by the previous version */
+  const k=`sos:diary:${S.roomId}:${S.me?.pid}`;const old=lsGet(k,[]);
+  if(!old.length||!S.me)return;
+  const ups={};old.forEach(e=>{ups['m_'+e.id]={subject:e.window||'Study',topic:'',mins:e.mins||0,tags:e.tags||[],notes:e.text||'',ts:e.ts||Date.now(),date:dkey(new Date(e.ts||Date.now()))}});
+  update(ref(db,`userDiary/${uid()}/${S.roomId}`),ups).then(()=>{localStorage.removeItem(k);toast(`Imported ${old.length} earlier diary entries`)}).catch(()=>{});
+}
 function notifyChanges(){
   if(!S.room||!S.me||!S.players[S.me.pid])return;
-  const curIds=Object.keys(S.players||{});
-  if(S.prevPlayers){
-    curIds.forEach(id=>{
-      if(!S.prevPlayers.includes(id)&&id!==S.me.pid)toast(`${pname(id)} joined the room`);
-    });
-  }
-  S.prevPlayers=curIds;
-  const curOn={};
-  curIds.forEach(id=>{
-    const isOn=online(id);
-    curOn[id]=isOn;
-    if(S.prevOnline&&id!==S.me.pid&&S.prevOnline[id]!==undefined&&S.prevOnline[id]!==isOn){
-      toast(`${pname(id)} is ${isOn?'back online':'offline'}`);
-    }
-  });
-  S.prevOnline=curOn;
+  const cur=Object.keys(S.players||{});
+  if(S.prevPlayers)cur.forEach(id=>{if(!S.prevPlayers.includes(id)&&id!==S.me.pid)toast(`${pname(id)} joined the group`)});
+  S.prevPlayers=cur;
+  const on={};
+  cur.forEach(id=>{const o=online(id);on[id]=o;if(S.prevOnline&&id!==S.me.pid&&S.prevOnline[id]!==undefined&&S.prevOnline[id]!==o)toast(`${pname(id)} is ${o?'back online':'offline'}`)});
+  S.prevOnline=on;
 }
-
 if(db){
   onValue(ref(db,'.info/serverTimeOffset'),s=>S.offset=s.val()||0);
-  onValue(ref(db,'.info/connected'),s=>{
-    S.connected=!!s.val();
-    S.presOn=false;
-    after();
-    render();
-  });
-  document.addEventListener('visibilitychange',()=>{
-    if(document.hidden){pres(false);S.presOn=false}
-    else{S.presOn=false;after();render()}
-  });
+  onValue(ref(db,'.info/connected'),s=>{S.connected=!!s.val();S.presOn=false;after();render()});
+  document.addEventListener('visibilitychange',()=>{if(document.hidden){pres(false);S.presOn=false}else{S.presOn=false;after();render()}});
   addEventListener('beforeunload',()=>pres(false));
-  addEventListener('hashchange',()=>enter(location.hash.slice(1)));
+  addEventListener('hashchange',()=>{const h=location.hash.slice(1);if(h&&S.user){history.replaceState(null,'',location.pathname);S.ug[h]?enter(h):joinSheet(h)}});
 }
-
 function pres(on,activity){
-  if(!db||!S.me||!S.room||!S.players[S.me.pid])return;
-  const r=ref(db,`${base()}/presence/${S.me.pid}`);
-  const act=activity||currentActivity();
-  if(on){
-    onDisconnect(r).set({online:false,lastSeen:serverTimestamp(),activity:'offline'})
-      .then(()=>set(r,{online:true,lastSeen:serverTimestamp(),activity:act})).catch(()=>{});
-  }else{
-    set(r,{online:false,lastSeen:serverTimestamp(),activity:'offline'}).catch(()=>{});
-  }
+  if(!db||!S.me||!S.room||!S.players[S.me.pid]||!S.roomId)return;
+  const r=ref(db,`${base()}/presence/${S.me.pid}`),act=activity||currentActivity();
+  if(on)onDisconnect(r).set({online:false,lastSeen:serverTimestamp(),activity:'offline'}).then(()=>set(r,{online:true,lastSeen:serverTimestamp(),activity:act})).catch(()=>{});
+  else set(r,{online:false,lastSeen:serverTimestamp(),activity:'offline'}).catch(()=>{});
 }
 function currentActivity(){
-  const g=S.game,me=S.me?.pid;
-  if(!me)return 'idle';
-  if(g.status==='choosing'){
-    const a=S.answers['r'+g.round]||{};
-    return a[me]!==undefined?'locked':'selecting';
-  }
-  if(g.status==='study'){
-    const st=S.sessions['r'+g.round]?.[me]?.status;
-    return st==='completed'?'done':st==='studying'?'studying':'ready';
-  }
+  const g=S.game,me=S.me?.pid;if(!me)return 'idle';
+  if(g.status==='answering')return (S.answers[akey()]||{})[me]!==undefined?'locked':'selecting';
+  if(g.status==='study'){const st=sessOf(me);return st==='completed'?'done':st==='studying'?'studying':'ready'}
   return 'lobby';
 }
-clearInterval(hbTimer);
-hbTimer=setInterval(()=>{
-  if(S.connected&&!document.hidden&&S.me&&S.room&&S.players[S.me.pid]){
-    set(ref(db,`${base()}/presence/${S.me.pid}`),{online:true,lastSeen:serverTimestamp(),activity:currentActivity()}).catch(()=>{});
-  }
-},25000);
-
+setInterval(()=>{if(db&&S.connected&&!document.hidden&&S.me&&S.room&&S.players[S.me.pid]&&S.roomId)set(ref(db,`${base()}/presence/${S.me.pid}`),{online:true,lastSeen:serverTimestamp(),activity:currentActivity()}).catch(()=>{})},25000);
 function after(){
   if(!S.room||!S.me||!S.players[S.me.pid])return;
   if(!S.presOn&&S.connected&&!document.hidden){S.presOn=true;pres(true)}
   const g=S.game,key=g.status+g.round;
-  if(S.lastStatus&&S.lastStatus!==key&&S.tab==='home'&&['choosing','survived','study','finished'].includes(g.status)){
-    S.tab='game';
-  }
+  if(S.lastStatus&&S.lastStatus!==key&&S.tab==='home'&&['answering','revealed','study'].includes(g.status))S.tab='game';
   S.lastStatus=key;
-
-  if(g.status!=='choosing'){S.resolving=null;return}
-  const a=S.answers['r'+g.round]||{},ids=Object.keys(S.players||{});
-  if(ids.length>=2&&ids.every(i=>a[i]!==undefined)&&S.resolving!==g.round){
-    S.resolving=g.round;
-    const picks=ids.map(i=>a[i]),same=new Set(picks).size===1,t=now(),r=g.round;
-    runTransaction(ref(db,base()+'/game'),c=>{
-      if(!c||c.status!=='choosing'||c.round!==r)return;
-      return {
-        status:same?'survived':'study',
-        round:r,
-        active:c.active||null,
-        matched:same?picks[0]:null,
-        studyStartedAt:same?null:t,
-        studyEndsAt:same?null:t+mins()*60000
-      };
-    }).catch(()=>{})
-    .finally(()=>{setTimeout(()=>{if(S.resolving===r)S.resolving=null},1500)});
-  }
 }
 
-function nextRound(){
-  const r=S.game.round;
-  if(S.busy.next)return;
-  S.busy.next=true;
+/* ---------- game transactions ---------- */
+const topicFrom=p=>({id:p.id,label:p.label,...(p.custom?{custom:arr(p.custom)}:{})});
+function startRound(topic){
+  if(S.busy.start||!topic)return;
+  if(plist().length<2)return toast('Need at least 2 players');
+  S.busy.start=true;const t=now();
   runTransaction(ref(db,base()+'/game'),c=>{
-    if(!c||c.round!==r||!['survived','study'].includes(c.status))return;
-    let a=arr(c.active).map(Number);
-    if(c.status==='survived'&&S.config.removeMatched!==false)a=a.filter(i=>i!==c.matched);
-    const allValid=opts().map((o,i)=>o.trim()?i:-1).filter(i=>i>=0);
-    allValid.forEach(idx=>{
-      if(idx>=(c.maxIdxSeen||0)&&!a.includes(idx))a.push(idx);
-    });
-    if(a.length<2)return {status:'finished',round:r,active:a.length?a:null,matched:c.matched??null};
-    return {status:'choosing',round:r+1,active:a,matched:null,maxIdxSeen:Math.max(c.maxIdxSeen||0,...allValid)+1};
-  }).catch(()=>toast('Could not advance round. Try again')).finally(()=>{S.busy.next=false});
+    c=c||{status:'lobby',round:0};
+    if(!['lobby','topic'].includes(c.status))return;
+    const same=c.topic&&c.topic.id===topic.id;
+    const trail=same?arr(c.trail).map(x=>arr(x)):[];
+    return{status:'answering',round:(c.round||0)+1,gid:c.gid||t,topic,options:genOptions(topic,trail,trail.length),trail,startedAt:t};
+  }).then(r=>{if(r.committed)update(ref(db,base()),{proposal:null})}).catch(()=>toast('Could not start the round')).finally(()=>{S.busy.start=false});
 }
-
+function toTopic(){
+  const r=S.game.round;if(S.busy.next)return;S.busy.next=true;
+  runTransaction(ref(db,base()+'/game'),c=>{if(!c||c.status!=='study'||c.round!==r)return;return{...c,status:'topic'}})
+    .catch(()=>toast('Could not continue. Try again')).finally(()=>{S.busy.next=false});
+}
 /* ---------- stats & charts ---------- */
 function stats(){
   const pl=plist(),rs=arr(S.reports),today=new Date(),tk=dkey(today),mon=mondayOf(today),wk=dkey(mon);
@@ -451,289 +488,186 @@ function donut(items){
   <div class="sp">${items.map((x,i)=>`<div class="row sm" style="padding:4px 0"><i style="width:9px;height:9px;border-radius:3px;background:var(--s${i%6});flex:none"></i><span class="sp" style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(x.label)}</span><b>${Math.round(x.val/tot*100)}%</b></div>`).join('')}</div></div>`;
 }
 
-/* ---------- views ---------- */
-function render(){
+/* ---------- render & routing ---------- */
+function render(force){
   const app=$('#app');if(!app)return;
-  const active=document.activeElement;
-  if(app.contains(active)&&/INPUT|TEXTAREA/.test(active.tagName))return;
-  const k=S.roomId+S.tab+S.game.status+S.game.round+S.loaded+(S.me?1:0);
+  const act=document.activeElement;
+  if(!force&&app.contains(act)&&/INPUT|TEXTAREA/.test(act.tagName))return;
+  const snap=force?[...app.querySelectorAll('input[name],textarea[name]')].map(e=>[e.name,e.value]):null;
+  const k=[S.user?.uid,S.roomId,S.tab,S.game.status,S.game.round,S.loaded,S.me?1:0,S.ugLoaded].join('|');
   app.className=k!==S.lastK?'anim':'';S.lastK=k;
   app.innerHTML=route();
+  if(snap)snap.forEach(([n,v])=>{const e=app.querySelector(`[name="${n}"]`);if(e)e.value=v});
   tick();
 }
-
+function setupV(){
+  return `<div class="center"><div class="brand" style="margin-bottom:10px">SAME OR STUDY</div><h1>One-time setup</h1>
+  <p class="mut" style="margin:10px 0 16px">${!dbOk?'Open <b>config.js</b> and paste your Firebase <b>databaseURL</b>.':'Google and guest login need Firebase Authentication. This takes about 3 minutes and is free.'}</p>
+  <div class="card sm"><ol style="margin:0;padding-left:18px;line-height:1.7">
+  <li>Firebase console → ⚙ Project settings → <b>Your apps</b> → Web app → copy <code>apiKey</code>, <code>authDomain</code>, <code>projectId</code>, <code>appId</code> into <b>config.js</b>.</li>
+  <li>Build → <b>Authentication</b> → Get started → Sign-in method → enable <b>Google</b> and <b>Anonymous</b>.</li>
+  <li>Authentication → Settings → <b>Authorized domains</b> → add the domain this site is hosted on.</li>
+  <li>Realtime Database → <b>Rules</b> → paste the contents of <b>database.rules.json</b> → Publish.</li></ol></div></div>`;
+}
+function loginV(){
+  return `<div class="center"><div class="brand" style="margin-bottom:12px">SAME OR STUDY</div>
+  <h1>Pick the same.<br>Or study.</h1>
+  <p class="mut" style="margin:12px 0 22px">A private real-time game and study tracker for your friend group.</p>
+  <button class="btn" data-act="google"><svg class="ic" viewBox="0 0 24 24"><path d="M21 12a9 9 0 1 1-2.6-6.4M21 12h-9"/></svg>Continue with Google</button>
+  <div class="xs mut" style="text-align:center;margin:16px 0">or</div>
+  <form data-form="guest"><input name="gname" maxlength="20" required value="${esc(savedName())}" placeholder="Your first name"><button class="btn ghost" style="margin-top:8px">Continue as guest</button></form>
+  <p class="xs mut" style="margin:12px 0 0">Guest access is tied to this browser. Use Google to keep your groups on every device.</p>
+  ${S.loginErr?`<p class="sm" style="color:var(--bad);margin-top:12px">${esc(S.loginErr)}</p>`:''}</div>`;
+}
+function route(){
+  if(!db||!authOk)return setupV();
+  if(S.authFail)return `<div class="center"><h2>Connection issue</h2><p class="mut">${esc(S.authFail)}</p><button class="btn" onclick="location.reload()">Reload</button></div>`;
+  if(!S.authReady)return loading('Starting');
+  if(!S.user)return loginV();
+  if(S.ugErr)return `<div class="center"><h2>Connection issue</h2><p class="mut">${esc(S.ugErr)}</p><button class="btn" onclick="location.reload()">Reload</button><button class="btn ghost" data-act="signout">Sign out</button></div>`;
+  if(!S.ugLoaded)return loading('Loading your groups');
+  if(!S.roomId)return dashV();
+  return groupV();
+}
+const gameLabel=g=>{g=g||{};const n=g.round||0;
+  if(g.status==='answering')return `Round ${n} · answering`;
+  if(g.status==='revealed')return `Round ${n} · revealed`;
+  if(g.status==='study')return `Study challenge`;
+  if(g.status==='lobby'||g.status==='topic')return n?`Choosing topic · round ${n+1}`:'In lobby';
+  return 'Idle'};
+function dashV(){
+  const ids=Object.keys(S.ug);
+  const cards=ids.map(id=>{
+    const d=D[id];
+    if(!d||!d.ok)return `<div class="card"><div class="mut think">Loading</div></div>`;
+    if(d.err||!d.meta)return `<div class="card"><b>Group unavailable</b><p class="xs mut" style="margin:4px 0 10px">It may have been deleted or you no longer have access.</p><button class="btn xs ghost" data-act="forget" data-id="${id}">Remove from my list</button></div>`;
+    const pl=Object.entries(d.players||{}).map(([pid,p])=>({pid,...p})).sort((a,b)=>(a.joinedAt||0)-(b.joinedAt||0));
+    const on=pl.filter(p=>d.presence?.[p.pid]?.online===true).length;
+    return `<div class="card gcard" data-act="open" data-id="${id}">
+      <div class="row"><h2 class="sp">${esc(d.meta.name)}</h2><span class="pill ${on?'ok':''}">${on} online</span></div>
+      <div class="row" style="margin:12px 0 4px;flex-wrap:wrap;gap:8px 14px">${pl.map((p,i)=>`<span class="row" style="gap:7px">${avN(p.name,i,24)}<span class="sm">${esc(p.name)}${p.pid===S.ug[id]?' <span class="mut xs">· you</span>':''}</span><i class="dot ${d.presence?.[p.pid]?.online===true?'on':''}"></i></span>`).join('')}</div>
+      <div class="row" style="margin-top:10px"><span class="pill live">${esc(gameLabel(d.game))}</span><div class="sp"></div><span class="xs mut">${pl.length}/3 members</span></div></div>`;
+  }).join('');
+  return `<header class="top"><div><div class="brand">SAME OR STUDY</div><div class="rn">Hi ${esc(savedName()||'there')}${S.user.isAnonymous?' <span class="pill">Guest</span>':''}</div></div>
+    <div class="hb"><button class="ib" data-act="theme" aria-label="Theme">${ic('<path d="M21 13A9 9 0 1 1 11 3a7 7 0 0 0 10 10z"/>')}</button>
+    <button class="ib" data-act="signout" aria-label="Sign out">${ic('<path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/>')}</button></div></header>
+  ${S.user.isAnonymous?`<div class="card sm" style="padding:12px 14px"><div class="row"><span class="sp mut">Guest login lives in this browser only.</span><button class="btn xs" data-act="upgrade">Link Google</button></div></div>`:''}
+  <h3 style="margin:6px 4px 10px">Active groups</h3>
+  ${cards||`<div class="card"><div class="empty">No groups yet. Create one or join with a code.</div></div>`}
+  <div class="btnrow" style="margin-top:6px"><button class="btn" data-act="newgroup">+ New group</button><button class="btn ghost" data-act="joingroup">Join with code</button></div>`;
+}
 function liveStatusText(p){
   if(!online(p.id))return 'Offline';
   const g=S.game;
-  if(g.status==='choosing'){
-    const a=S.answers['r'+g.round]||{};
-    return a[p.id]!==undefined?'Locked in':'Selecting…';
-  }
-  if(g.status==='study'){
-    const st=S.sessions['r'+g.round]?.[p.id]?.status;
-    return st==='completed'?'Report done':st==='studying'?'Studying':'Waiting';
-  }
-  return 'Online';
+  if(g.status==='answering')return (S.answers[akey()]||{})[p.id]!==undefined?'Locked in':'Selecting…';
+  if(g.status==='revealed')return 'Deciding result';
+  if(g.status==='study'){const st=sessOf(p.id);return st==='completed'?'Report done':st==='studying'?'Studying':'Waiting'}
+  return S.proposal?.votes?.[p.id]?'Agreed on topic':'Online';
 }
-
-function route(){
-  if(!db)return `<div class="center"><h1>Almost there</h1><p class="mut">Open <b>config.js</b> and paste your Firebase Database URL between the quotes, then save.</p></div>`;
-  if(!S.roomId){
-    const last=localStorage.getItem('sos:last');
-    if(last&&!S.skipLast){S.skipLast=1;location.hash=last;return ''}
-    return `<div class="center">
-      <div class="brand" style="margin-bottom:12px">SAME OR STUDY</div>
-      <h1>Pick the same.<br>Or study.</h1>
-      <p class="mut" style="margin:12px 0 22px">A private real-time room for 2 or more friends. Create a room and share the link on WhatsApp.</p>
-      <form data-form="create">
-        <label>Room name</label><input name="room" maxlength="30" required placeholder="e.g. Study Squad">
-        <label>Your name</label><input name="me" maxlength="20" required value="${esc(savedName())}" placeholder="Your first name">
-        <button class="btn" style="margin-top:20px">Create private room</button>
-      </form>
-    </div>`;
-  }
-  if(!S.loaded)return `<div class="center" style="text-align:center"><div class="mut">Connecting to room…</div></div>`;
-  if(S.err)return `<div class="center"><h2>Connection issue</h2><p class="mut">${esc(S.err)}</p><button class="btn" data-act="retry">Try again</button><button class="btn ghost" data-act="home">Back</button></div>`;
-  if(!S.room)return `<div class="center"><h2>Room not found</h2><p class="mut">Double-check your invite link, or create a new room for your group.</p><button class="btn" data-act="home">Create a room</button></div>`;
-
-  if(!S.me||!S.players[S.me.pid]){
-    const pl=plist();
-    return `<div class="center">
-      <div class="brand" style="margin-bottom:10px">SAME OR STUDY</div>
-      <h1>${esc(S.room.name)}</h1>
-      <p class="mut" style="margin:8px 0 18px">${pl.length} player${pl.length===1?'':'s'} currently in this room.</p>
-      <form data-form="join"><label>Your name</label><input name="me" maxlength="20" required value="${esc(savedName())}" placeholder="Enter your name to join"><button class="btn" style="margin-top:16px">Join room</button></form>
-      ${pl.length?`<h3 style="margin:26px 0 10px">Reconnecting on a new tab or device?</h3>
-      ${pl.map(p=>`<button class="opt" style="width:100%;margin-bottom:8px" data-act="claim" data-pid="${p.id}">${av(p.id,30,true)}<span class="sp">Continue as <b>${esc(p.name)}</b></span><span class="pill ${online(p.id)?'ok':''}">${online(p.id)?'Online':'Join'}</span></button>`).join('')}`:''}
-    </div>`;
-  }
-
+const NAV=[['home','Room','<path d="M3 11l9-8 9 8v9a1 1 0 0 1-1 1h-5v-6H9v6H4a1 1 0 0 1-1-1z"/>'],
+['game','Game','<rect x="3" y="3" width="7" height="7" rx="2"/><rect x="14" y="3" width="7" height="7" rx="2"/><rect x="3" y="14" width="7" height="7" rx="2"/><rect x="14" y="14" width="7" height="7" rx="2"/>'],
+['diary','Diary','<path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/>'],
+['plan','Plan','<circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/>'],
+['stats','Growth','<polyline points="22 7 13.5 15.5 8.5 10.5 2 17"/><polyline points="16 7 22 7 22 13"/>'],
+['hist','History','<path d="M3 12a9 9 0 1 0 3-6.7L3 8"/><polyline points="3 3 3 8 8 8"/>']];
+function groupV(){
+  if(!S.loaded)return loading('Connecting to group');
+  if(S.err)return `<div class="center"><h2>Connection issue</h2><p class="mut">${esc(S.err)}</p><button class="btn" data-act="retry">Try again</button><button class="btn ghost" data-act="dash">Back to groups</button></div>`;
+  if(!S.room||!S.me||!S.players[S.me.pid])return `<div class="center"><h2>${S.room?'You are no longer in this group':'Group not found'}</h2><p class="mut">${S.room?'The host removed you. You can rejoin with the group code.':'It may have been deleted.'}</p><button class="btn" data-act="forgetcur">Back to my groups</button></div>`;
   const pl=plist();
-  const T={home:homeV,game:gameV,diary:diaryV,stats:statsV,hist:histV}[S.tab]||homeV;
-  const nav=[
-    ['home','Room','<path d="M3 11l9-8 9 8v9a1 1 0 0 1-1 1h-5v-6H9v6H4a1 1 0 0 1-1-1z"/>'],
-    ['game','Game','<rect x="3" y="3" width="7" height="7" rx="2"/><rect x="14" y="3" width="7" height="7" rx="2"/><rect x="3" y="14" width="7" height="7" rx="2"/><rect x="14" y="14" width="7" height="7" rx="2"/>'],
-    ['diary','Diary','<path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/>'],
-    ['stats','Growth','<polyline points="22 7 13.5 15.5 8.5 10.5 2 17"/><polyline points="16 7 22 7 22 13"/>'],
-    ['hist','Reports','<circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/>']
-  ];
-  const slots=Math.max(2,pl.length);
-  const strip=Array.from({length:slots},(_,i)=>{
-    const p=pl[i];
+  const T={home:homeV,game:gameV,diary:diaryV,plan:planV,stats:statsV,hist:histV}[S.tab]||homeV;
+  const strip=Array.from({length:Math.max(2,pl.length)},(_,i)=>{const p=pl[i];
     if(!p)return `<div class="rchip empty"><span>Waiting #${i+1}</span></div>`;
-    return `<div class="rchip">${av(p.id,24,true)}<div style="min-width:0"><div class="nm">${esc(p.name)}</div><div class="st">${esc(liveStatusText(p))}</div></div></div>`;
-  }).join('');
-
-  return `<header class="top">
-    <div><div class="brand">SAME OR STUDY</div><div class="rn">${esc(S.room.name)} <i class="dot ${S.connected?'on':''}" title="${S.connected?'Live synced':'Reconnecting'}"></i></div></div>
-    <div class="hb">
-      <button class="ib" data-act="share" aria-label="Invite friends" title="Invite">${ic('<path d="M4 12v7a1 1 0 0 0 1 1h14a1 1 0 0 0 1-1v-7"/><polyline points="16 6 12 2 8 6"/><line x1="12" y1="2" x2="12" y2="15"/>')}</button>
-      <button class="ib" data-act="theme" aria-label="Theme">${ic('<path d="M21 13A9 9 0 1 1 11 3a7 7 0 0 0 10 10z"/>')}</button>
-      <button class="ib" data-act="settings" aria-label="Settings">${ic('<path d="M4 6h10M18 6h2M4 12h4M12 12h8M4 18h12M20 18h0"/><circle cx="16" cy="6" r="2"/><circle cx="10" cy="12" r="2"/><circle cx="18" cy="18" r="2"/>')}</button>
-    </div>
-  </header>
+    return `<div class="rchip">${av(p.id,24,true)}<div style="min-width:0"><div class="nm">${esc(p.name)}</div><div class="st">${esc(liveStatusText(p))}</div></div></div>`}).join('');
+  const rem=S.reminder;
+  return `<header class="top"><div style="min-width:0"><div class="brand">SAME OR STUDY</div><div class="rn">${esc(S.room.name)} <i class="dot ${S.connected?'on':''}" title="${S.connected?'Live synced':'Reconnecting'}"></i></div></div>
+    <div class="hb"><button class="ib" data-act="dash" aria-label="All groups" title="All groups">${ic('<line x1="19" y1="12" x2="5" y2="12"/><polyline points="12 19 5 12 12 5"/>')}</button>
+    <button class="ib" data-act="theme" aria-label="Theme">${ic('<path d="M21 13A9 9 0 1 1 11 3a7 7 0 0 0 10 10z"/>')}</button>
+    <button class="ib" data-act="settings" aria-label="Settings">${ic('<path d="M4 6h10M18 6h2M4 12h4M12 12h8M4 18h12M20 18h0"/><circle cx="16" cy="6" r="2"/><circle cx="10" cy="12" r="2"/><circle cx="18" cy="18" r="2"/>')}</button></div></header>
   <div class="roombar">${strip}</div>
-  ${S.connected?'':'<div class="banner">Reconnecting to live room… changes will sync automatically</div>'}
+  ${S.connected?'':'<div class="banner">Reconnecting… changes will sync automatically</div>'}
+  ${rem?`<div class="card" style="border-color:var(--p1)"><div class="row"><b class="sp">⏰ ${esc(rem.title)} · ${esc(rem.time)}</b><button class="iconbtn" data-act="remclose">${ic('<line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>')}</button></div><div class="btnrow" style="margin-top:10px"><button class="btn sm" data-act="remwa">Remind WhatsApp group</button><button class="btn sm ghost" data-act="tab" data-t="game">Open game</button></div></div>`:''}
   ${T()}
-  <nav><div>${nav.map(([k,l,p])=>`<button class="${S.tab===k?'on':''}" data-act="tab" data-t="${k}">${ic(p)}${l}</button>`).join('')}</div></nav>`;
+  <nav><div>${NAV.map(([k,l,p])=>`<button class="${S.tab===k?'on':''}" data-act="tab" data-t="${k}">${ic(p)}${l}</button>`).join('')}</div></nav>`;
 }
 
-const statusOf=id=>S.sessions['r'+S.game.round]?.[id]?.status||'none';
-
-function suggestionsCard(){
-  const host=isHost();
-  const sugs=Object.entries(S.suggestions||{}).map(([id,s])=>({id,...s})).sort((a,b)=>(a.createdAt||0)-(b.createdAt||0));
-  return `<div class="card">
-    <div class="row"><h3>Word suggestions</h3><div class="sp"></div><span class="xs mut">${sugs.length} pending</span></div>
-    <form class="sug-form" data-form="suggest">
-      <input name="word" maxlength="28" required autocomplete="off" placeholder="Suggest a new word or option…">
-      <button class="btn sm" type="submit">Suggest</button>
-    </form>
-    ${sugs.length?`<div style="margin-top:12px">${sugs.map(s=>`<div class="sug-item">
-      ${av(s.pid,26)}
-      <div class="sp"><div style="font-weight:600;font-size:14px">${esc(s.word)}</div><div class="xs mut">by ${esc(pname(s.pid))} · ${ago(s.createdAt)}</div></div>
-      ${host?`<div class="sug-acts">
-        <button type="button" class="iconbtn yes" data-act="acceptSug" data-id="${s.id}" title="Approve & add">${ic('<polyline points="20 6 9 17 4 12"/>')}</button>
-        <button type="button" class="iconbtn no" data-act="rejectSug" data-id="${s.id}" title="Dismiss">${ic('<line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>')}</button>
-      </div>`:`<span class="pill">Pending</span>`}
-    </div>`).join('')}</div>`:`<p class="xs mut" style="margin:10px 0 0">Anyone can suggest new options here. ${host?'Tap ✓ to add them to the game.':'The host can approve them into the pool.'}</p>`}
-  </div>`;
-}
-
+/* ---------- group tabs ---------- */
 function homeV(){
-  const st=stats(),g=S.game,pl=plist(),host=isHost();
-  const active=g.status==='lobby'?opts().map((o,i)=>o.trim()?i:-1).filter(i=>i>=0):arr(g.active);
-  const rl=g.status==='lobby'?'Ready to start':g.status==='finished'?'Finished':`Round ${g.round}`;
-  let cta;
-  if(pl.length<2)cta=`<button class="btn" disabled>Waiting for at least 1 more friend (${pl.length}/2 min)</button>`;
-  else if(g.status==='lobby')cta=host?`<button class="btn" data-act="start">Start game (${pl.length} players)</button>`:`<button class="btn" disabled>Waiting for ${esc(pname(S.room.hostId))} to start</button>`;
-  else if(g.status==='finished')cta=host?`<button class="btn" data-act="reset">Play again</button>`:`<button class="btn ghost" data-act="tab" data-t="game">View final result</button>`;
-  else cta=`<button class="btn ok" data-act="tab" data-t="game">CONTINUE TO ROUND ${g.round}</button>`;
-
-  const total=Math.max(10,opts().length);
-  return `<div class="card">
-    <h3>Current session</h3>
-    <div class="row" style="margin-top:8px"><div class="big">${rl}</div><div class="sp"></div><div style="text-align:right"><div style="font-weight:700;font-size:20px">${active.length}</div><div class="mut xs">options left</div></div></div>
-    <div class="dots">${Array.from({length:total},(_,i)=>`<i class="${active.includes(i)?'on':''}"></i>`).join('')}</div>
-    <div style="margin-top:16px">${cta}</div>
-  </div>
-
-  <div class="card">
-    <h3>Invite friends (2+ players · unlimited)</h3>
-    <p class="sm mut" style="margin:6px 0 10px">Share this room link on WhatsApp — play with 2 friends or a whole study group.</p>
-    <div class="lnk">${esc(link())}</div>
-    <div class="btnrow" style="margin-top:10px">
-      <button class="btn sm" data-act="copy">Copy link</button>
-      <button class="btn sm ghost" data-act="wa">Share on WhatsApp</button>
-    </div>
-  </div>
-
-  <div class="card">
-    <h3>Players in room (${pl.length})</h3>
-    ${pl.map((p,i)=>{
-      const o=online(p.id),pr=S.presence[p.id];
-      const canRemove=host&&p.id!==S.me.pid;
-      return `<div class="row pr">
-        ${av(p.id,38,true)}
-        <div class="sp">
-          <div style="font-weight:600">${esc(p.name)}${p.id===S.me.pid?' <span class="mut xs">· you</span>':''}${p.id===S.room.hostId?' <span class="mut xs">· host</span>':''}</div>
-          <div class="xs mut">${o?esc(liveStatusText(p)):'Offline'+(pr?.lastSeen?' · '+ago(pr.lastSeen):'')}</div>
-        </div>
-        <div style="text-align:right"><div style="font-weight:600">${fmt(st.per[i]?.today||0)}</div><div class="xs mut">today</div></div>
-        ${canRemove?`<button type="button" class="iconbtn no" data-act="kick" data-pid="${p.id}" title="Remove player">${ic('<line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>')}</button>`:''}
-      </div>`;
-    }).join('')}
-  </div>
-
-  ${suggestionsCard()}
-
-  <div class="trio">
-    <div class="card"><h3>Group total</h3><div class="v">${fmt(st.group)}</div></div>
-    <div class="card"><h3>This week</h3><div class="v">${fmt(st.gweek)}</div></div>
-    <div class="card"><h3>Streak</h3><div class="v">${st.streak}<span class="sm mut"> d</span></div></div>
-  </div>
+  const st=stats(),g=S.game,pl=plist();
+  const rl=g.status==='answering'||g.status==='revealed'?`Round ${g.round}`:g.status==='study'?'Study time':(g.round?`Round ${g.round+1} next`:'Ready');
+  const cta=pl.length<2?`<button class="btn" disabled>Waiting for friends (${pl.length}/3)</button>`
+    :`<button class="btn ${g.status==='lobby'||g.status==='topic'?'':'ok'}" data-act="tab" data-t="game">${g.status==='lobby'||g.status==='topic'?'Choose topic & play':'Continue game'}</button>`;
+  return `<div class="card"><h3>Current session</h3>
+    <div class="row" style="margin-top:8px"><div class="big">${rl}</div><div class="sp"></div><div style="text-align:right"><div style="font-weight:700;font-size:17px">${esc(g.topic?.label||'No topic')}</div><div class="mut xs">${esc(gameLabel(g))}</div></div></div>
+    <div style="margin-top:16px">${cta}</div></div>
+  <div class="card"><h3>Players (${pl.length}/3)</h3>
+  ${pl.map((p,i)=>{const o=online(p.id),pr=S.presence[p.id],canRemove=isHost()&&p.id!==S.me.pid;
+    return `<div class="row pr">${av(p.id,38,true)}<div class="sp"><div style="font-weight:600">${esc(p.name)}${p.id===S.me.pid?' <span class="mut xs">· you</span>':''}${p.id===S.room.hostId?' <span class="mut xs">· host</span>':''}</div>
+    <div class="xs mut">${o?esc(liveStatusText(p)):'Offline'+(pr?.lastSeen?' · '+ago(pr.lastSeen):'')}</div></div>
+    <div style="text-align:right"><div style="font-weight:600">${fmt(st.per[i]?.today||0)}</div><div class="xs mut">today</div></div>
+    ${canRemove?`<button type="button" class="iconbtn no" data-act="kick" data-pid="${p.id}" title="Remove player">${ic('<line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>')}</button>`:''}</div>`}).join('')}
+  ${pl.length<3?`<div class="row" style="margin-top:12px"><span class="xs mut sp">Friends join from their dashboard with code</span><button class="btn xs ghost" data-act="copy">${esc(S.roomId.toUpperCase())} · copy</button></div>`:''}</div>
+  <div class="trio"><div class="card"><h3>Group total</h3><div class="v">${fmt(st.group)}</div></div><div class="card"><h3>This week</h3><div class="v">${fmt(st.gweek)}</div></div><div class="card"><h3>Streak</h3><div class="v">${st.streak}<span class="sm mut"> d</span></div></div></div>
   <button class="btn ghost" data-act="log">+ Log a study session</button>`;
 }
-
 function gameV(){
-  const g=S.game,pl=plist(),host=isHost(),me=S.me.pid,a=S.answers['r'+g.round]||{};
-
-  if(g.status==='lobby'){
-    return `<div class="card">
-      <h3>How it works</h3>
-      <h2 style="margin-top:6px">Same answer, or study together</h2>
-      <p class="mut" style="margin:8px 0 16px">Everyone secretly picks one option. If all ${pl.length||2} players pick the exact same word, you survive and that option retires. If anyone differs, everyone completes a ${mins()}-minute study challenge.</p>
-      ${pl.length>=2&&host?`<button class="btn" data-act="start">Start Round 1 (${pl.length} players)</button>`:`<button class="btn" disabled>${pl.length<2?`Waiting for friends (${pl.length}/2 min)`:`Waiting for ${esc(pname(S.room.hostId))} to start`}</button>`}
-    </div>
-    ${suggestionsCard()}`;
-  }
-
-  if(g.status==='finished'){
-    return `<div class="card">
-      <span class="tag ok">Game complete</span>
-      <h2 style="margin-top:12px">All options played out</h2>
-      <p class="mut" style="margin:8px 0 16px">Great run! All your study logs and insights remain saved in this room.</p>
-      ${host?`<button class="btn" data-act="reset">Start a new game</button>`:`<button class="btn ghost" data-act="tab" data-t="stats">View group insights</button>`}
-    </div>`;
-  }
-
-  if(g.status==='choosing'){
-    if(S.pickRound!==g.round){S.pick=null;S.pickRound=g.round}
-    const mine=a[me],locked=mine!==undefined,sel=locked?mine:S.pick;
-    const lockedCount=pl.filter(p=>a[p.id]!==undefined).length;
-    const activeList=arr(g.active);
-
-    return `<div class="card">
-      <div class="row"><h3>Round ${g.round} · ${activeList.length} options left</h3><div class="sp"></div><span class="pill live">${lockedCount}/${pl.length} locked</span></div>
-      <h2 style="margin-top:6px">${locked?'Locked in · waiting for friends':'Choose your secret answer'}</h2>
-      <p class="xs mut" style="margin:4px 0 0">Selections stay completely hidden until all ${pl.length} players submit.</p>
-    </div>
-
-    <div class="card" style="padding:12px 16px">
-      ${pl.map(p=>{
-        const isDone=a[p.id]!==undefined;
-        return `<div class="row pr" style="padding:7px 0">
-          ${av(p.id,28,true)}
-          <span class="sp" style="font-weight:500">${esc(p.name)}${p.id===me?' <span class="mut xs">(you)</span>':''}</span>
-          ${isDone?'<span class="pill ok">✓ Locked in</span>':`<span class="pill think">${online(p.id)?'Selecting':'Offline'}</span>`}
-        </div>`;
-      }).join('')}
-    </div>
-
-    <div class="opts">${activeList.map((i,n)=>`<button class="opt ${sel===i?'sel':''}" data-act="pick" data-i="${i}" ${locked?'disabled':''}><span class="n">${n+1}</span><span class="sp">${esc(opt(i))}</span>${sel===i?'<span class="xs mut">'+(locked?'Your pick':'Selected')+'</span>':''}</button>`).join('')}</div>
-
-    ${locked?'':`<div class="dock"><button class="btn" data-act="lock" ${S.pick==null?'disabled':''}>Lock in answer</button></div>`}
-    ${suggestionsCard()}`;
-  }
-
-  /* Reveal state: survived or study */
-  const same=g.status==='survived';
-  const activeList=arr(g.active);
-  const remCount=same&&S.config.removeMatched!==false?Math.max(0,activeList.length-1):activeList.length;
-
-  let h=`<div class="card">
-    <div class="row"><h3>Round ${g.round} · Simultaneous reveal</h3><div class="sp"></div><span class="tag ${same?'ok':'bad'}">${same?`All ${pl.length} matched!`:'No match'}</span></div>
-    <div style="margin:14px 0 4px">${pl.map((p,k)=>`<div class="rcard" style="--i:${k}">${av(p.id,32,true)}<span style="font-weight:500">${esc(p.name)}</span><b>${esc(opt(a[p.id]))}</b></div>`).join('')}</div>
-  </div>`;
-
-  if(same){
-    const rm=S.config.removeMatched!==false;
-    h+=`<div class="card">
-      <h2>Everyone survived</h2>
-      <p class="mut" style="margin:6px 0 16px">${rm?`“${esc(opt(g.matched))}” is retired. ${remCount} option${remCount===1?'':'s'} remaining.`:`${remCount} options remaining.`}</p>
-      <button class="btn ok" data-act="next">${remCount<2?'FINISH GAME':'CONTINUE'}</button>
-    </div>`;
-  }else{
-    const ss=pl.map(p=>statusOf(p.id)),all=ss.length>=2&&ss.every(s=>s==='completed'),my=statusOf(me);
-    const L={none:['Not started',''],studying:['Studying','st'],completed:['Report saved','ok']};
-    h+=`<div class="card"><h3 id="cl">${mins()}-minute study challenge</h3><div class="clock" id="clock">--:--</div><div class="prog"><i id="cbar" style="width:0"></i></div></div>
-    <div class="card">
-      <h3>Group study progress</h3>
-      ${pl.map((p,i)=>`<div class="row pr">${av(p.id,32,true)}<span class="sp" style="font-weight:500">${esc(p.name)}</span><span class="pill ${L[ss[i]][1]}">${L[ss[i]][0]}</span></div>`).join('')}
-      <div style="margin-top:16px">
-        ${my==='none'?`<button class="btn" data-act="begin">Start my timer</button>`:my==='studying'?`<button class="btn" data-act="report" data-r="${g.round}">Finish &amp; submit study report</button>`:`<button class="btn ghost" disabled>✓ Your report is saved</button>`}
-        ${all?`<button class="btn ok" style="margin-top:10px" data-act="next">CONTINUE TO ROUND ${g.round+1}</button>`:host?`<button class="btn ghost" style="margin-top:8px" data-act="skip">Skip challenge (host)</button>`:''}
-      </div>
-    </div>`;
-  }
+  const st=S.game.status;
+  if(['lobby','topic'].includes(st))return topicV();
+  if(st==='answering')return answerV();
+  if(st==='revealed')return revealV();
+  if(st==='study')return studyV();
+  return `<div class="card"><h2>Game from an older version</h2><p class="mut" style="margin:8px 0 14px">Your study logs are safe. Reset the game to use the new topic rounds.</p>${isHost()?`<button class="btn" data-act="reset">Reset game</button>`:`<p class="xs mut">Ask the host to reset the game.</p>`}</div>`;
+}
+function topicV(){
+  const g=S.game,pl=plist(),me=S.me.pid,host=isHost(),p=S.proposal,next=(g.round||0)+1,trail=arr(g.trail),cur=g.topic;
+  let h=`<div class="card"><div class="row"><h3>Round ${next} · topic</h3><div class="sp"></div><span class="pill">${pl.length}/3 players</span></div>`;
+  if(cur){const prev=genOptions(cur,trail,trail.length);
+    h+=`<h2 style="margin-top:8px">${esc(cur.label)}</h2><p class="xs mut" style="margin:4px 0 8px">${trail.length?`Narrowed to ${prev.length} options related to your previous answers.`:`${prev.length} options to start.`}</p><div class="tagrow">${prev.map(w=>`<span class="dtag">${esc(w)}</span>`).join('')||'<span class="xs mut">Free typing round</span>'}</div>`;
+  }else h+=`<h2 style="margin-top:8px">Pick a category</h2><p class="xs mut" style="margin:4px 0 0">Anyone can suggest. Everyone agrees, then you play.</p>`;
+  h+=`</div>`;
+  let all=false;
+  if(p){const votes=p.votes||{};all=pl.length>0&&pl.every(x=>votes[x.id]);
+    h+=`<div class="card"><h3>Suggested topic</h3><div class="row" style="margin:8px 0">${av(p.by,30)}<div class="sp"><b>${esc(pname(p.by))}</b> suggests <b>${esc(p.label)}</b></div></div>
+    ${pl.map(x=>`<div class="row pr" style="padding:7px 0">${av(x.id,26,true)}<span class="sp">${esc(x.name)}</span><span class="pill ${votes[x.id]?'ok':''}">${votes[x.id]?'✓ Agrees':'Waiting'}</span></div>`).join('')}
+    <div class="btnrow" style="margin-top:12px">${votes[me]?'':`<button class="btn sm ok" data-act="agree">Agree</button>`}${p.by===me||host?`<button class="btn sm ghost" data-act="withdraw">Withdraw</button>`:''}${host&&!all?`<button class="btn sm ghost" data-act="usenow">Use now (host)</button>`:''}</div></div>`;}
+  let cta;
+  if(pl.length<2)cta=`<button class="btn" disabled>Waiting for friends (${pl.length}/3)</button>`;
+  else if(p)cta=all?`<button class="btn ok" data-act="startp">Start round ${next} · ${esc(p.label)}</button>`:`<button class="btn" disabled>Waiting for everyone to agree</button>`;
+  else if(cur)cta=`<button class="btn ok" data-act="startp">Start round ${next} · ${esc(cur.label)}</button>`;
+  else cta=`<button class="btn" disabled>Choose a topic first</button>`;
+  h+=`<div class="dock" style="bottom:88px">${cta}</div>
+  <div class="card"><h3>${cur?'Suggest a different topic':'Categories'}</h3><div class="preset-grid">${CATS.map(c=>`<button type="button" class="preset" style="${p?.id===c.id?'border-color:var(--ink)':''}" data-act="cat" data-id="${c.id}">${c.icon} ${esc(c.label)}</button>`).join('')}</div></div>`;
   return h;
 }
-
-function diaryV(){
-  const entries=getDiary().sort((a,b)=>b.ts-a.ts);
-  const filtered=S.diaryFilter==='all'?entries:entries.filter(e=>(e.tags||[]).includes(S.diaryFilter));
-  const g=S.game;
-  const activeRound=g.status==='study'?`Round ${g.round} (${mins()}m block)`:'Personal Time Block';
-
-  return `<div class="card">
-    <div class="row"><h3>Private On-Device Diary</h3><div class="sp"></div><span class="pill ok">🔒 Stored only on your phone</span></div>
-    <h2 style="margin-top:6px">Log what you did in this time</h2>
-    <p class="xs mut" style="margin:4px 0 12px">Private to this device only — nobody else in the room can read your diary.</p>
-    <form data-form="diary">
-      <div class="row" style="gap:8px">
-        <div class="sp"><label style="margin-top:0">Time window / block</label><input name="window" maxlength="40" required value="${esc(activeRound)}" placeholder="e.g. 6:00 PM - 7:00 PM"></div>
-        <div style="width:105px"><label style="margin-top:0">Mins</label><input name="mins" type="number" inputmode="numeric" min="1" max="720" required value="${mins()}"></div>
-      </div>
-      <label>What did you actually do?</label>
-      <textarea name="text" required maxlength="500" placeholder="Be honest with yourself: solved 15 calculus problems, scrolled reels for 10m…"></textarea>
-      <label>Tag your focus &amp; mood</label>
-      <div class="tagrow">${DIARY_TAGS.map(t=>`<button type="button" class="tchip ${S.diaryTags.includes(t)?'on':''}" data-act="toggleTag" data-tag="${t}">${t}</button>`).join('')}</div>
-      <button class="btn" style="margin-top:16px">Save private entry</button>
-    </form>
-  </div>
-
-  <div class="chips">
-    <button class="chip ${S.diaryFilter==='all'?'on':''}" data-act="dfilter" data-tag="all">All (${entries.length})</button>
-    ${DIARY_TAGS.map(t=>`<button class="chip ${S.diaryFilter===t?'on':''}" data-act="dfilter" data-tag="${t}">${t}</button>`).join('')}
-  </div>
-
-  ${filtered.length?filtered.map(e=>`<div class="card" style="padding:14px 16px;margin-bottom:8px">
-    <div class="row"><b style="font-size:14px">${esc(e.window)}</b><span class="pill">${fmt(e.mins)}</span><div class="sp"></div><span class="xs mut">${fmtStamp(e.ts)}</span><button type="button" class="iconbtn no" style="width:26px;height:26px" data-act="delDiary" data-id="${e.id}" title="Delete entry">${ic('<line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>')}</button></div>
-    <p style="margin:8px 0 4px;font-size:14.5px">${esc(e.text)}</p>
-    <div>${(e.tags||[]).map(t=>`<span class="dtag ${t.replace('@','')}">${esc(t)}</span>`).join('')}</div>
-  </div>`).join(''):`<div class="empty">No private diary entries yet. Your reflections stay 100% local on this device.</div>`}`;
+function answerV(){
+  const g=S.game,pl=plist(),me=S.me.pid,a=S.answers[akey()]||{},mine=a[me],locked=mine!==undefined;
+  const done=pl.filter(p=>a[p.id]!==undefined).length,ready=pl.length>=2&&done===pl.length,opts=arr(g.options);
+  return `<div class="card"><div class="row"><h3>Round ${g.round} · ${esc(g.topic?.label||'')}</h3><div class="sp"></div><span class="pill live">${done}/${pl.length} locked</span></div>
+    <h2 style="margin-top:6px">${locked?'Locked in':'Pick the same answer as your friends'}</h2>
+    <p class="xs mut" style="margin:4px 0 0">${locked?`Your answer: <b>${esc(mine)}</b>. Hidden from others until reveal.`:'Answers stay hidden until everyone has locked in.'}</p></div>
+  <div class="card" style="padding:12px 16px">${pl.map(p=>`<div class="row pr" style="padding:7px 0">${av(p.id,28,true)}<span class="sp" style="font-weight:500">${esc(p.name)}${p.id===me?' <span class="mut xs">(you)</span>':''}</span>${a[p.id]!==undefined?'<span class="pill ok">✓ Locked in</span>':`<span class="pill think">${online(p.id)?'Selecting':'Offline'}</span>`}</div>`).join('')}</div>
+  ${ready?`<button class="btn ok" style="height:60px;font-size:17px;margin-bottom:12px" data-act="reveal">REVEAL ALL</button>`:''}
+  ${locked?'':`<div class="opts" style="grid-template-columns:repeat(2,1fr)">${opts.map((o,n)=>`<button class="opt ${S.pick===o?'sel':''}" data-act="pick" data-w="${esc(o)}"><span class="n">${n+1}</span><span class="sp">${esc(o)}</span></button>`).join('')}</div>
+  <div class="card" style="margin-top:12px"><label style="margin-top:0">${opts.length?'Or type your own':'Type your answer'}</label><input id="freeAns" maxlength="30" autocomplete="off" placeholder="Your answer"></div>
+  <div class="dock"><button class="btn" data-act="lock">Lock in answer</button></div>`}`;
 }
-
+function revealV(){
+  const g=S.game,pl=plist(),a=S.answers[akey()]||{};
+  return `<div class="card"><div class="row"><h3>Round ${g.round} · ${esc(g.topic?.label||'')}</h3><div class="sp"></div><span class="tag ok">Revealed</span></div>
+    <div style="margin:14px 0 4px">${pl.map((p,k)=>`<div class="rcard" style="--i:${k}">${av(p.id,32,true)}<span style="font-weight:500">${esc(p.name)}</span><b>${esc(a[p.id]??'—')}</b></div>`).join('')}</div></div>
+  <div class="card"><h2>You decide</h2><p class="mut" style="margin:6px 0 14px">Did all of you pick the same answer?</p>
+    <div class="btnrow"><button class="btn ok" data-act="result" data-k="match">✓ We matched</button><button class="btn ghost" data-act="result" data-k="study">No match · study</button></div></div>`;
+}
+function studyV(){
+  const g=S.game,pl=plist(),me=S.me.pid,host=isHost();
+  const ss=pl.map(p=>sessOf(p.id)),all=ss.length>=2&&ss.every(s=>s==='completed'),my=sessOf(me);
+  const L={none:['Not started',''],studying:['Studying','st'],completed:['Report saved','ok']};
+  return `<div class="card"><h3 id="cl">${mins()}-minute study challenge</h3><div class="clock" id="clock">--:--</div><div class="prog"><i id="cbar" style="width:0"></i></div></div>
+  <div class="card"><h3>Group study progress</h3>
+  ${pl.map((p,i)=>`<div class="row pr">${av(p.id,32,true)}<span class="sp" style="font-weight:500">${esc(p.name)}</span><span class="pill ${L[ss[i]][1]}">${L[ss[i]][0]}</span></div>`).join('')}
+  <div style="margin-top:16px">${my==='none'?`<button class="btn" data-act="begin">Start my timer</button>`:my==='studying'?`<button class="btn" data-act="report" data-r="${g.round}">Finish &amp; submit study report</button>`:`<button class="btn ghost" disabled>✓ Your report is saved</button>`}
+  ${all?`<button class="btn ok" style="margin-top:10px" data-act="totopic">Back to topics · round ${g.round+1}</button>`:host?`<button class="btn ghost" style="margin-top:8px" data-act="skip">Skip challenge (host)</button>`:''}</div></div>`;
+}
 function tick(){
   const el=$('#clock');if(!el||S.game.status!=='study'||!S.game.studyEndsAt)return;
   const ms=S.game.studyEndsAt-now(),tot=(S.game.studyEndsAt-S.game.studyStartedAt)||1;
@@ -743,6 +677,81 @@ function tick(){
 }
 setInterval(tick,1000);
 
+/* ---------- diary (private, synced under userDiary/<uid>/<group>) ---------- */
+function diaryV(){
+  const all=Object.entries(S.diary||{}).map(([id,e])=>({id,...e})).sort((a,b)=>b.ts-a.ts);
+  const used=[...new Set(all.flatMap(e=>arr(e.tags)))];
+  const tags=[...new Set([...QUICK_TAGS,...S.customTags,...used])];
+  const subs=[...new Set([...all.map(e=>e.subject),...arr(S.reports).map(r=>r.subject)].filter(Boolean))];
+  const f=all.filter(e=>(S.diaryFilter==='all'||arr(e.tags).includes(S.diaryFilter))&&(!S.diaryDate||e.date===S.diaryDate));
+  const tk=dkey(new Date()),today=all.filter(e=>e.date===tk),tm=today.reduce((s,e)=>s+(+e.mins||0),0);
+  const days=[...Array(7)].map((_,i)=>{const d=new Date();d.setDate(d.getDate()-6+i);return d});
+  const wk=days.map(d=>all.filter(e=>e.date===dkey(d)).reduce((s,e)=>s+(+e.mins||0),0)),wm=wk.reduce((a,b)=>a+b,0),mx=Math.max(1,...wk);
+  const last=all[0];let h=`<div class="card"><div class="row"><h3>Study diary</h3><div class="sp"></div><span class="pill ok">🔒 Only you</span></div>
+  <form data-form="diary" style="margin-top:6px">
+    <div class="row" style="gap:8px"><div class="sp"><label style="margin-top:6px">Subject</label><input name="subject" required maxlength="40" list="dsubs" autocomplete="off" value="${esc(last?.subject||'')}" placeholder="Physics"><datalist id="dsubs">${subs.map(s=>`<option value="${esc(s)}">`).join('')}</datalist></div>
+    <div style="width:88px"><label style="margin-top:6px">Mins</label><input name="mins" type="number" inputmode="numeric" min="1" max="720" required value="${last?.mins||30}"></div></div>
+    <label>Topic studied</label><input name="topic" required maxlength="80" autocomplete="off" placeholder="Rotational motion">
+    <label>Tags</label><div class="tagrow">${tags.map(t=>`<button type="button" class="tchip ${S.diaryTags.includes(t)?'on':''}" data-act="toggleTag" data-tag="${esc(t)}">${esc(t)}</button>`).join('')}</div>
+    <div class="row" style="gap:8px;margin-top:8px"><input name="ctag" maxlength="24" placeholder="New tag, e.g. OrganicChemistry" autocomplete="off"><button type="button" class="btn sm ghost" data-act="addTag">Add</button></div>
+    <label>Notes (optional)</label><textarea name="notes" maxlength="500" style="min-height:56px" placeholder="What went well, what was hard…"></textarea>
+    <button class="btn" style="margin-top:14px">Save entry</button></form></div>
+  <div class="trio"><div class="card"><h3>Today</h3><div class="v">${fmt(tm)}</div></div><div class="card"><h3>7 days</h3><div class="v">${fmt(wm)}</div></div><div class="card"><h3>Entries</h3><div class="v">${all.length}</div></div></div>
+  <div class="card"><h3>Last 7 days</h3><div class="mini" style="margin-top:10px">${wk.map(v=>`<i style="height:${Math.max(4,v/mx*100)}%" title="${fmt(v)}"></i>`).join('')}</div><div class="mini-l">${days.map(d=>`<span>${d.toLocaleDateString('en',{weekday:'short'})[0]}</span>`).join('')}</div></div>
+  <div class="chips"><button class="chip ${S.diaryFilter==='all'?'on':''}" data-act="dfilter" data-tag="all">All</button>${tags.map(t=>`<button class="chip ${S.diaryFilter===t?'on':''}" data-act="dfilter" data-tag="${esc(t)}">${esc(t)}</button>`).join('')}</div>
+  <div class="row" style="gap:8px;margin:6px 0 10px"><input type="date" name="dday" value="${esc(S.diaryDate)}" data-change="ddate" style="height:42px"><button class="btn xs ghost" data-act="dclear">Clear</button></div>`;
+  let lastD='';
+  h+=f.length?f.map(e=>{let hd='';if(e.date!==lastD){lastD=e.date;hd=`<div class="day">${pkey(e.date).toLocaleDateString('en',{weekday:'long',day:'numeric',month:'short'})}</div>`}
+    return hd+`<div class="card" style="padding:14px 16px;margin-bottom:8px"><div class="row"><b style="font-size:14px" class="sp">${esc(e.subject)}${e.topic?` <span class="mut" style="font-weight:500">· ${esc(e.topic)}</span>`:''}</b><span class="pill">${fmt(e.mins)}</span><button type="button" class="iconbtn no" style="width:26px;height:26px" data-act="delDiary" data-id="${e.id}">${ic('<line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>')}</button></div>
+    ${e.notes?`<p style="margin:8px 0 2px;font-size:14px">${esc(e.notes)}</p>`:''}<div>${arr(e.tags).map(t=>`<span class="dtag">${esc(t)}</span>`).join('')}</div><div class="xs mut" style="margin-top:6px">${fmtStamp(e.ts)}</div></div>`}).join(''):`<div class="empty">No entries match. Add your first one above.</div>`;
+  return h;
+}
+
+/* ---------- plan: schedule & reminders ---------- */
+function planV(){
+  const wa=S.config?.waLink||'',perm='Notification' in window?Notification.permission:'unsupported';
+  const sch=Object.entries(S.schedule||{}).map(([id,s])=>({id,...s})).sort((a,b)=>(a.time||'').localeCompare(b.time||''));
+  return `<div class="card"><h3>WhatsApp group</h3>
+    <form data-form="wa" class="sug-form"><input name="link" value="${esc(wa)}" placeholder="https://chat.whatsapp.com/…" inputmode="url"><button class="btn sm">Save</button></form>
+    <div class="btnrow" style="margin-top:10px"><button class="btn sm" data-act="owa" ${wa?'':'disabled'}>Open group</button><button class="btn sm ghost" data-act="swa">Share a nudge</button></div></div>
+  <div class="card"><h3>Add reminder</h3><form data-form="sched">
+    <div class="row" style="gap:8px"><div class="sp"><label style="margin-top:6px">Title</label><input name="title" maxlength="40" required value="Study session"></div><div style="width:118px"><label style="margin-top:6px">Time</label><input name="time" type="time" required value="19:00"></div></div>
+    <label>Repeat</label><div class="tagrow"><button type="button" class="tchip ${S.planDays.length?'':'on'}" data-act="pday" data-d="all">Daily</button>${DAYN.map((d,i)=>`<button type="button" class="tchip ${S.planDays.includes(i)?'on':''}" data-act="pday" data-d="${i}">${d}</button>`).join('')}</div>
+    <label>Message (optional)</label><input name="note" maxlength="100" placeholder="Phones away. 60 minutes. Go.">
+    <button class="btn" style="margin-top:14px">Add to schedule</button></form></div>
+  <h3 style="margin:6px 4px 10px">Scheduled (${sch.length})</h3>
+  ${sch.length?sch.map(s=>`<div class="card" style="padding:14px 16px;margin-bottom:8px"><div class="row"><div class="sp"><b>${esc(s.title)}</b><div class="xs mut">${esc(s.time)} · ${arr(s.days).length?arr(s.days).map(d=>DAYN[d]).join(', '):'Every day'}${s.by?` · ${esc(pname(s.by))}`:''}</div></div><button class="iconbtn no" data-act="delSched" data-id="${s.id}">${ic('<line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>')}</button></div>
+  <div class="btnrow" style="margin-top:10px"><button class="btn xs ghost" data-act="schedwa" data-id="${s.id}">Send to WhatsApp</button><button class="btn xs ghost" data-act="ics" data-id="${s.id}">Add to phone calendar</button></div></div>`).join(''):`<div class="card"><div class="empty">No reminders yet.</div></div>`}
+  <div class="card"><h3>Alerts on this device</h3>
+    <p class="sm mut" style="margin:6px 0 10px">${perm==='granted'?'Browser notifications are on.':perm==='denied'?'Notifications are blocked in your browser settings.':perm==='unsupported'?'This browser does not support notifications.':'Allow notifications to get a pop-up when a reminder is due.'}</p>
+    ${perm==='default'?`<button class="btn sm" data-act="notif">Enable notifications</button>`:''}
+    <p class="xs mut" style="margin:12px 0 0">Reminders fire only while this app is open or still alive in the background. Browsers pause idle tabs and can’t wake a closed one, and WhatsApp doesn’t allow free automated posting into personal groups. For guaranteed alerts use “Add to phone calendar”, and tap “Send to WhatsApp” to post the nudge yourself in one tap.</p></div>`;
+}
+function checkReminders(){
+  if(!S.me||!S.room||!S.players[S.me.pid]||document.hidden&&false)return;
+  const d=new Date(),dk=dkey(d),cur=d.getHours()*60+d.getMinutes();
+  Object.entries(S.schedule||{}).forEach(([id,s])=>{
+    if(!s.time)return;const days=arr(s.days);if(days.length&&!days.includes(d.getDay()))return;
+    const [h,m]=s.time.split(':').map(Number),t=h*60+m;if(cur<t||cur-t>20)return;
+    const fk=`sos:fired:${S.roomId}:${id}:${dk}`;if(localStorage.getItem(fk))return;
+    try{localStorage.setItem(fk,'1')}catch{}
+    S.reminder={...s,id};toast(`⏰ ${s.title}`);
+    try{navigator.vibrate?.([200,100,200])}catch{}
+    if('Notification' in window&&Notification.permission==='granted'){try{new Notification(s.title,{body:s.note||`${S.room.name} · ${s.time}`})}catch{}}
+    render();
+  });
+}
+setInterval(checkReminders,20000);
+const waText=s=>`⏰ ${s.title} at ${s.time}${s.note?' — '+s.note:''}\nTime to study, ${S.room?.name||'squad'}! 📚`;
+const waShare=txt=>window.open('https://wa.me/?text='+encodeURIComponent(txt),'_blank','noopener');
+function icsFor(s){
+  const [h,m]=s.time.split(':'),dt=new Date(),st=`${dt.getFullYear()}${pad(dt.getMonth()+1)}${pad(dt.getDate())}T${pad(h)}${pad(m)}00`,days=arr(s.days);
+  const rule=days.length?`FREQ=WEEKLY;BYDAY=${days.map(x=>['SU','MO','TU','WE','TH','FR','SA'][x]).join(',')}`:'FREQ=DAILY',ti=String(s.title).replace(/[,;\n]/g,' ');
+  const txt=['BEGIN:VCALENDAR','VERSION:2.0','PRODID:-//SameOrStudy//EN','BEGIN:VEVENT',`UID:${rid(10)}@sameorstudy`,`DTSTAMP:${new Date().toISOString().replace(/[-:]|\.\d{3}/g,'')}`,`DTSTART:${st}`,`RRULE:${rule}`,`SUMMARY:${ti}`,'BEGIN:VALARM','TRIGGER:PT0M','ACTION:DISPLAY',`DESCRIPTION:${ti}`,'END:VALARM','END:VEVENT','END:VCALENDAR'].join('\r\n');
+  const a=document.createElement('a');a.href=URL.createObjectURL(new Blob([txt],{type:'text/calendar'}));a.download='study-reminder.ics';a.click();
+}
+
+/* ---------- growth & history ---------- */
 function statsV(){
   const st=stats(),pl=plist();
   const leg=`<div class="leg">${pl.map((p,i)=>`<span class="c${i%6}"><i></i>${esc(p.name)}</span>`).join('')}</div>`;
@@ -750,45 +759,50 @@ function statsV(){
   if(items.length>5){const rest=items.slice(5).reduce((s,x)=>s+x.val,0);items=[...items.slice(0,5),{label:'Other',val:rest}]}
   const mx=Math.max(1,...st.per.map(p=>p.total));
   return `<div class="trio"><div class="card"><h3>Group total</h3><div class="v">${fmt(st.group)}</div></div><div class="card"><h3>This week</h3><div class="v">${fmt(st.gweek)}</div></div><div class="card"><h3>Streak</h3><div class="v">${st.streak}<span class="sm mut"> d</span></div></div></div>
-  <div class="card"><div class="row"><h3>Real-time growth comparison · 7d</h3><div class="sp"></div><span class="pill live">Live</span></div><p class="xs mut" style="margin:4px 0 10px">Cumulative study hours across all players</p>${growthLineSvg(st.dl,st.daily)}${leg}</div>
+  <div class="card"><div class="row"><h3>Growth comparison · 7d</h3><div class="sp"></div><span class="pill live">Live</span></div><p class="xs mut" style="margin:4px 0 10px">Cumulative study hours</p>${growthLineSvg(st.dl,st.daily)}${leg}</div>
   <div class="card"><h3>Daily · last 7 days</h3>${barsSvg(st.dl,st.daily)}${leg}</div>
   <div class="card"><h3>Weekly · last 8 weeks</h3>${barsSvg(st.wl,st.weekly)}${leg}</div>
   <div class="card"><h3>Head to head</h3>${pl.map((p,i)=>`<div style="margin-top:14px" class="c${i%6}"><div class="row">${av(p.id,28)}<span class="sp" style="font-weight:600">${esc(p.name)}</span><b>${fmt(st.per[i]?.total||0)}</b></div><div class="hbar"><i style="width:${(st.per[i]?.total||0)/mx*100}%"></i></div><div class="xs mut" style="margin-top:4px">${st.per[i]?.n||0} sessions · avg ${fmt(st.per[i]?.n?st.per[i].total/st.per[i].n:0)} · this week ${fmt(st.per[i]?.week||0)}</div></div>`).join('')}</div>
   <div class="card"><h3>Subjects</h3><div class="chips"><button class="chip ${S.subj==='all'?'on':''}" data-act="subj" data-p="all">Everyone</button>${pl.map(p=>`<button class="chip ${S.subj===p.id?'on':''}" data-act="subj" data-p="${p.id}">${esc(p.name)}</button>`).join('')}</div><div style="margin-top:12px">${donut(items)}</div></div>`;
 }
-
 function histV(){
   const pl=plist();
+  const modes=`<div class="chips"><button class="chip ${S.histMode==='study'?'on':''}" data-act="hmode" data-m="study">Study reports</button><button class="chip ${S.histMode==='game'?'on':''}" data-act="hmode" data-m="game">Game rounds</button></div>`;
+  if(S.histMode==='game'){
+    const hs=Object.entries(S.history||{}).map(([id,x])=>({id,...x})).sort((a,b)=>(b.at||0)-(a.at||0)).slice(0,S.histN);
+    return modes+(hs.length?hs.map(x=>`<div class="card" style="padding:14px 16px;margin-bottom:8px"><div class="row"><b class="sp">Round ${x.round} · ${esc(x.topic)}</b>${x.result?`<span class="pill ${x.result==='matched'?'ok':'warn'}">${x.result==='matched'?'Matched':'Studied'}</span>`:''}</div>
+      <div style="margin-top:8px">${Object.entries(x.answers||{}).map(([pid,w])=>`<div class="row sm" style="padding:3px 0"><span class="sp mut">${esc(S.players[pid]?.name||x.names?.[pid]||'Player')}</span><b>${esc(w)}</b></div>`).join('')}</div><div class="xs mut" style="margin-top:6px">${x.at?fmtStamp(x.at):''}</div></div>`).join(''):`<div class="empty">No rounds played yet.</div>`);
+  }
   let rs=arr(S.reports).filter(r=>S.hist==='all'||r.pid===S.hist).sort((a,b)=>(b.createdAt||0)-(a.createdAt||0));
   const shown=rs.slice(0,S.histN);let last='',h='';
   shown.forEach(r=>{
     if(r.date!==last){last=r.date;h+=`<div class="day">${pkey(r.date).toLocaleDateString('en',{weekday:'long',day:'numeric',month:'short'})}</div>`}
-    h+=`<div class="card" style="padding:4px 18px;margin-bottom:8px"><div class="rep"><div class="row">${av(r.pid,30)}<div class="sp"><b>${esc(r.subject)}</b> <span class="mut">· ${esc(r.topic)}</span><div class="xs mut">${esc(pname(r.pid))}${r.round?` · round ${r.round}`:''}</div></div><span class="pill">${fmt(r.minutes)}</span></div><p style="margin:10px 0 0">${esc(r.accomplished)}</p>${r.notes?`<p class="sm mut" style="margin:6px 0 0">${esc(r.notes)}</p>`:''}</div></div>`;
+    const nm=S.players[r.pid]?pname(r.pid):(r.name||'Former member');
+    h+=`<div class="card" style="padding:4px 18px;margin-bottom:8px"><div class="rep"><div class="row">${S.players[r.pid]?av(r.pid,30):''}<div class="sp"><b>${esc(r.subject)}</b> <span class="mut">· ${esc(r.topic)}</span><div class="xs mut">${esc(nm)}${r.round?` · round ${r.round}`:''}</div></div><span class="pill">${fmt(r.minutes)}</span></div><p style="margin:10px 0 0">${esc(r.accomplished)}</p>${r.notes?`<p class="sm mut" style="margin:6px 0 0">${esc(r.notes)}</p>`:''}</div></div>`;
   });
-  return `<div class="chips"><button class="chip ${S.hist==='all'?'on':''}" data-act="hist" data-p="all">Everyone</button>${pl.map(p=>`<button class="chip ${S.hist===p.id?'on':''}" data-act="hist" data-p="${p.id}">${esc(p.name)}</button>`).join('')}</div>
-  ${shown.length?h:`<div class="empty">No reports yet. Finish a study challenge or log a session.</div>`}
-  ${rs.length>S.histN?`<button class="btn ghost" data-act="more">Show more</button>`:''}`;
+  return modes+`<div class="chips"><button class="chip ${S.hist==='all'?'on':''}" data-act="hist" data-p="all">Everyone</button>${pl.map(p=>`<button class="chip ${S.hist===p.id?'on':''}" data-act="hist" data-p="${p.id}">${esc(p.name)}</button>`).join('')}</div>
+  ${shown.length?h:`<div class="empty">No reports yet. Finish a study challenge or log a session.</div>`}${rs.length>S.histN?`<button class="btn ghost" data-act="more">Show more</button>`:''}`;
 }
 
 /* ---------- sheets ---------- */
 function sheet(html){
   const s=$('#sheet');if(!s)return;
   s.innerHTML=`<div class="back" data-act="close"></div><div class="sh"><div class="grab"></div>${html}</div>`;
-  requestAnimationFrame(()=>s.classList.add('open'));
-  document.body.style.overflow='hidden';
+  requestAnimationFrame(()=>s.classList.add('open'));document.body.style.overflow='hidden';
 }
 function closeSheet(){
   const s=$('#sheet');if(!s)return;
-  s.classList.remove('open');
-  document.body.style.overflow='';
-  setTimeout(()=>{if(!s.classList.contains('open'))s.innerHTML=''},280);
-  render();
+  s.classList.remove('open');document.body.style.overflow='';
+  setTimeout(()=>{if(!s.classList.contains('open'))s.innerHTML=''},280);render();
 }
-function reportSheet(round){
-  const ses=round?S.sessions['r'+round]?.[S.me.pid]:null;
+function newGroupSheet(){sheet(`<h2>New private group</h2><form data-form="create"><label>Group name</label><input name="room" maxlength="30" required placeholder="e.g. Study Squad"><label>Your name in this group</label><input name="me" maxlength="20" required value="${esc(savedName())}"><button class="btn" style="margin-top:18px">Create group</button></form>`)}
+function joinSheet(code=''){sheet(`<h2>Join a group</h2><p class="sm mut" style="margin:6px 0 0">Ask a friend for the group code (shown in their Room tab).</p><form data-form="join"><label>Group code</label><input name="code" maxlength="20" required value="${esc(code)}" autocapitalize="off" autocomplete="off" placeholder="e.g. k3m9xq2a"><label>Your name in this group</label><input name="me" maxlength="20" required value="${esc(savedName())}"><button class="btn" style="margin-top:18px">Join group</button></form>`)}
+function customSheet(){sheet(`<h2>Custom topic</h2><form data-form="custom"><label>Topic name</label><input name="name" maxlength="30" required placeholder="e.g. Periodic table"><label>Options (comma separated, optional)</label><textarea name="words" maxlength="400" placeholder="Hydrogen, Helium, Carbon, Oxygen…"></textarea><p class="xs mut" style="margin:6px 0 0">Leave empty for free-typing rounds. List the most common answers first; later rounds narrow towards your earlier answers.</p><button class="btn" style="margin-top:16px">Suggest this topic</button></form>`)}
+function reportSheet(key,round){
+  const ses=round?S.sessions[key]?.[S.me.pid]:null;
   const el=ses?.startedAt?Math.min(720,Math.max(1,Math.round((now()-ses.startedAt)/60000))):mins();
   const subs=[...new Set(arr(S.reports).map(r=>r.subject))];
-  sheet(`<h2>Study report</h2><form data-form="report" data-round="${round||0}">
+  sheet(`<h2>Study report</h2><form data-form="report" data-round="${round||0}" data-key="${esc(key||'')}">
   <label>Subject</label><input name="subject" required maxlength="40" list="subs" autocomplete="off" placeholder="e.g. Physics"><datalist id="subs">${subs.map(s=>`<option value="${esc(s)}">`).join('')}</datalist>
   <label>Topic</label><input name="topic" required maxlength="80" placeholder="e.g. Rotational motion">
   <label>Actual time studied (minutes)</label><input name="minutes" type="number" inputmode="numeric" min="1" max="720" required value="${el}">
@@ -797,271 +811,202 @@ function reportSheet(round){
   <button class="btn" style="margin-top:20px">Save report</button></form>`);
 }
 function settingsSheet(){
-  const host=isHost(),o=opts(),count=Math.max(10,o.length),pl=plist();
-  sheet(`<h2>Room settings</h2><form data-form="settings">
-  <label>Invite link (unlimited friends)</label><div class="lnk">${esc(link())}</div>
-  <div class="btnrow" style="margin-top:8px">
-    <button type="button" class="btn sm ghost" data-act="copy">Copy link</button>
-    <button type="button" class="btn sm ghost" data-act="wa">WhatsApp</button>
-  </div>
-  <label>Room name</label><input name="room" value="${esc(S.room.name)}" maxlength="30" ${host?'':'disabled'}>
-  ${host?`<label>Quick purpose presets (replaces options)</label>
-  <div class="preset-grid">${Object.entries(PRESETS).map(([k,v])=>`<button type="button" class="preset" data-act="preset" data-k="${k}">${esc(v.label)}</button>`).join('')}</div>`:''}
-  <label>Game options (${o.filter(Boolean).length} active) ${host?'':'· host only'}</label>
-  <div class="og" id="optGrid">${Array.from({length:count},(_,i)=>`<input name="o${i}" value="${esc(o[i]||'')}" maxlength="30" placeholder="Option ${i+1}" ${host?'':'disabled'}>`).join('')}</div>
+  const host=isHost(),pl=plist();
+  sheet(`<h2>Group settings</h2><form data-form="settings">
+  <label>Group code</label><div class="lnk">${esc(S.roomId)}</div>
+  <div class="btnrow" style="margin-top:8px"><button type="button" class="btn sm ghost" data-act="copy">Copy code</button></div>
+  <label>Group name</label><input name="room" value="${esc(S.room.name)}" maxlength="30" ${host?'':'disabled'}>
   <label>Study challenge (minutes)</label><input name="mins" type="number" min="5" max="240" value="${mins()}" ${host?'':'disabled'}>
-  <div class="sw"><span>Retire option after a matching round</span><input type="checkbox" name="rm" ${S.config.removeMatched!==false?'checked':''} ${host?'':'disabled'}></div>
-  ${host&&pl.length>1?`<label>Manage players (remove inactive)</label>
-  <div>${pl.filter(p=>p.id!==S.me.pid).map(p=>`<div class="row pr" style="padding:8px 0">${av(p.id,28,true)}<span class="sp" style="font-weight:500">${esc(p.name)}</span><button type="button" class="btn xs ghost" style="color:var(--bad)" data-act="kick" data-pid="${p.id}">Remove</button></div>`).join('')}</div>`:''}
+  ${host&&pl.length>1?`<label>Manage players</label><div>${pl.filter(p=>p.id!==S.me.pid).map(p=>`<div class="row pr" style="padding:8px 0">${av(p.id,28,true)}<span class="sp" style="font-weight:500">${esc(p.name)}</span><button type="button" class="btn xs ghost" style="color:var(--bad)" data-act="kick" data-pid="${p.id}">Remove</button></div>`).join('')}</div>`:''}
   ${host?`<button class="btn" style="margin-top:20px">Save settings</button><button type="button" class="btn ghost" data-act="reset">Reset game (keeps reports)</button>`:''}
-  <button type="button" class="btn ghost" data-act="leave">Switch player on this device</button></form>`);
+  <button type="button" class="btn ghost" data-act="dash">Switch group</button>
+  <button type="button" class="btn ghost" style="color:var(--bad)" data-act="leavegroup">Leave this group</button></form>`);
 }
 
-/* ---------- actions & forms ---------- */
+/* ---------- actions ---------- */
+const doProposal=t=>{ if(!S.me)return;
+  set(ref(db,base()+'/proposal'),{...t,by:S.me.pid,votes:{[S.me.pid]:true},at:now()}).catch(()=>toast('Could not send suggestion'))};
 const ACT={
   tab:t=>{S.tab=t.dataset.t;render();window.scrollTo(0,0)},
-  home:()=>{location.hash='';S.skipLast=1;localStorage.removeItem('sos:last');enter('')},
-  retry:()=>enter(S.roomId),
   theme:()=>setTheme(document.documentElement.dataset.theme==='dark'?'light':'dark'),
-  settings:settingsSheet,
-  close:closeSheet,
-  copy:async()=>{try{await navigator.clipboard.writeText(link());toast('Room link copied')}catch{prompt('Copy this link',link())}},
-  wa:()=>{const txt=encodeURIComponent(`Join our Same or Study room "${S.room?.name||'Squad'}": ${link()}`);window.open(`https://wa.me/?text=${txt}`,'_blank','noopener')},
-  share:async()=>{
-    if(navigator.share){try{await navigator.share({title:S.room?.name||'Same or Study',text:'Join our Same or Study room:',url:link()});return}catch{}}
-    ACT.copy();
-  },
-  subj:t=>{S.subj=t.dataset.p;render()},
-  hist:t=>{S.hist=t.dataset.p;render()},
-  more:()=>{S.histN+=20;render()},
-  claim:t=>{
-    const p=S.players[t.dataset.pid];if(!p)return;
-    S.me={pid:t.dataset.pid,name:p.name};
-    localStorage.setItem('sos:name',p.name);
-    saveId();S.presOn=false;after();render();
-  },
-  pick:t=>{S.pick=+t.dataset.i;S.pickRound=S.game.round;render()},
+  retry:()=>enter(S.roomId),
+  settings:settingsSheet,close:closeSheet,
+  google:async()=>{S.loginErr='';try{await signInWithPopup(auth,new GoogleAuthProvider())}catch(e){
+    if(e?.code==='auth/popup-blocked'){try{await signInWithRedirect(auth,new GoogleAuthProvider());return}catch(e2){e=e2}}
+    S.loginErr=authMsg(e);render()}},
+  upgrade:async()=>{try{await linkWithPopup(auth.currentUser,new GoogleAuthProvider());S.user=auth.currentUser;toast('Google linked');render()}catch(e){const m=authMsg(e);if(m)toast(m)}},
+  signout:async()=>{if(await askConfirm('Sign out?',S.user?.isAnonymous?'Guest accounts cannot be recovered after signing out. You would lose access to your groups.':'You can sign back in anytime.','Sign out',true)){pres(false);try{await signOut(auth)}catch{}}},
+  newgroup:()=>newGroupSheet(),joingroup:()=>joinSheet(),
+  open:t=>{enter(t.dataset.id);S.tab='home';window.scrollTo(0,0)},
+  dash:()=>{pres(false);closeSheet();S.tab='home';enter('')},
+  forget:t=>{remove(ref(db,`userGroups/${uid()}/${t.dataset.id}`)).catch(()=>toast('Could not remove'))},
+  forgetcur:()=>{const id=S.roomId;enter('');remove(ref(db,`userGroups/${uid()}/${id}`)).catch(()=>{})},
+  copy:async()=>{try{await navigator.clipboard.writeText(S.roomId);toast('Group code copied')}catch{prompt('Group code',S.roomId)}},
+  subj:t=>{S.subj=t.dataset.p;render()},hist:t=>{S.hist=t.dataset.p;render()},hmode:t=>{S.histMode=t.dataset.m;render()},more:()=>{S.histN+=20;render()},
+  claimp:t=>joinAs(t.dataset.code,t.dataset.name,t.dataset.pid).catch(()=>toast('Could not join')),
+  joinnew:t=>joinAs(t.dataset.code,t.dataset.name,null).catch(()=>toast('Could not join')),
+  /* topics */
+  cat:t=>{const id=t.dataset.id;
+    if(id==='custom')return customSheet();
+    if(id==='random')return doProposal(pickRandom());
+    const c=CATS.find(x=>x.id===id);if(c)doProposal({id:c.id,label:c.label})},
+  agree:()=>set(ref(db,`${base()}/proposal/votes/${S.me.pid}`),true).catch(()=>toast('Could not save')),
+  withdraw:()=>remove(ref(db,base()+'/proposal')).catch(()=>{}),
+  usenow:()=>S.proposal&&startRound(topicFrom(S.proposal)),
+  startp:()=>startRound(S.proposal?topicFrom(S.proposal):S.game.topic),
+  /* answers */
+  pick:t=>{S.pick=t.dataset.w;const i=$('#freeAns');if(i)i.value='';render()},
   lock:()=>{
-    const i=S.pick,r=S.game.round;
-    if(i==null||S.busy.lock)return;
-    S.busy.lock=true;
-    runTransaction(ref(db,`${base()}/answers/r${r}/${S.me.pid}`),v=>v==null?i:undefined)
-      .then(()=>{pres(true,'locked')})
-      .catch(()=>toast('Could not lock in. Check connection'))
-      .finally(()=>{S.busy.lock=false});
+    const g=S.game;if(S.busy.lock||g.status!=='answering')return;
+    let w=normAns($('#freeAns')?.value||S.pick);
+    if(!w)return toast('Pick an option or type your answer');
+    const canon=arr(g.options).find(o=>o.toLowerCase()===w.toLowerCase());if(canon)w=canon;
+    S.busy.lock=true;const key=akey();
+    runTransaction(ref(db,`${base()}/answers/${key}/${S.me.pid}`),v=>v==null?w:undefined)
+      .then(()=>{S.pick=null;pres(true,'locked')}).catch(()=>toast('Could not lock in. Check connection')).finally(()=>{S.busy.lock=false});
   },
-  start:()=>{
-    if(S.busy.start)return;
-    if(plist().length<2)return toast('Need at least 2 players to start');
-    const valid=opts().map((o,i)=>o.trim()?i:-1).filter(i=>i>=0);
-    if(valid.length<2)return toast('Add at least 2 options in settings');
-    S.busy.start=true;
-    runTransaction(ref(db,base()+'/game'),c=>{
-      if(c&&c.status!=='lobby'&&c.status!=='finished')return;
-      return {status:'choosing',round:1,active:valid,matched:null,maxIdxSeen:opts().length};
-    }).then(res=>{
-      if(res.committed)update(ref(db,base()),{answers:null,sessions:null});
-    }).catch(()=>toast('Could not start game')).finally(()=>{S.busy.start=false});
+  reveal:()=>{
+    const g=S.game,r=g.round,a=S.answers[akey()]||{},pl=plist();
+    if(S.busy.rev)return;
+    if(pl.length<2||!pl.every(p=>a[p.id]!==undefined))return toast('Waiting for everyone to lock in');
+    const picks=pl.map(p=>a[p.id]),am={},nm={};pl.forEach(p=>{am[p.id]=a[p.id];nm[p.id]=p.name});
+    S.busy.rev=true;
+    runTransaction(ref(db,base()+'/game'),c=>{if(!c||c.status!=='answering'||c.round!==r)return;return{...c,status:'revealed',revealedAt:now(),trail:[...arr(c.trail).map(x=>arr(x)),picks]}})
+      .then(res=>{if(res.committed)set(ref(db,`${base()}/history/${g.gid}_r${r}`),{round:r,topic:g.topic?.label||'',options:arr(g.options),answers:am,names:nm,at:serverTimestamp()})})
+      .catch(()=>toast('Could not reveal. Try again')).finally(()=>{S.busy.rev=false});
   },
-  next:()=>nextRound(),
-  skip:async()=>{if(await askConfirm('Skip study challenge?','This will advance everyone to the next round immediately.','Skip challenge'))nextRound()},
-  preset:t=>{
-    const p=PRESETS[t.dataset.k];if(!p)return;
-    const inputs=document.querySelectorAll('#optGrid input');
-    inputs.forEach((inp,i)=>{inp.value=p.items[i]||''});
-    toast(`Loaded “${p.label}” — tap Save settings`);
+  result:t=>{
+    const k=t.dataset.k,g=S.game,r=g.round,gid=g.gid;if(S.busy.res)return;S.busy.res=true;
+    runTransaction(ref(db,base()+'/game'),c=>{if(!c||c.status!=='revealed'||c.round!==r)return;
+      return k==='match'?{...c,status:'topic',result:'matched'}:{...c,status:'study',result:'study',studyStartedAt:now(),studyEndsAt:now()+mins()*60000}})
+      .then(res=>{if(res.committed&&gid)update(ref(db,`${base()}/history/${gid}_r${r}`),{result:k==='match'?'matched':'study'})})
+      .catch(()=>toast('Could not save result')).finally(()=>{S.busy.res=false});
   },
+  totopic:()=>toTopic(),
+  skip:async()=>{if(await askConfirm('Skip study challenge?','Everyone goes back to choosing the next topic.','Skip challenge'))toTopic()},
+  begin:()=>set(ref(db,`${base()}/sessions/${akey()}/${S.me.pid}`),{status:'studying',startedAt:now()}).then(()=>pres(true,'studying')).catch(()=>toast('Could not start timer')),
+  report:t=>reportSheet(akey(),+t.dataset.r),log:()=>reportSheet('',0),
   kick:async t=>{
-    if(!isHost())return;
-    const pid=t.dataset.pid;
-    if(!pid||pid===S.me.pid||!S.players[pid])return;
-    const name=pname(pid);
-    if(!(await askConfirm(`Remove ${name}?`,`${name} will be removed from the active room so the remaining players can continue.`,'Remove user',true)))return;
+    if(!isHost())return;const pid=t.dataset.pid;if(!pid||pid===S.me.pid||!S.players[pid])return;const name=pname(pid);
+    if(!(await askConfirm(`Remove ${name}?`,`${name} will be removed from this group. Their reports stay.`,'Remove',true)))return;
     const ups={[`players/${pid}`]:null,[`presence/${pid}`]:null};
-    if(S.game.status==='choosing')ups[`answers/r${S.game.round}/${pid}`]=null;
-    if(S.game.status==='study')ups[`sessions/r${S.game.round}/${pid}`]=null;
-    update(ref(db,base()),ups)
-      .then(()=>{toast(`Removed ${name}`);if($('#sheet').classList.contains('open'))settingsSheet()})
-      .catch(()=>toast('Could not remove user'));
+    if(S.game.status==='answering')ups[`answers/${akey()}/${pid}`]=null;
+    if(S.game.status==='study')ups[`sessions/${akey()}/${pid}`]=null;
+    update(ref(db,base()),ups).then(()=>{toast(`Removed ${name}`)}).catch(()=>toast('Could not remove player'));
   },
-  toggleTag:t=>{
-    const tag=t.dataset.tag;
-    const idx=S.diaryTags.indexOf(tag);
-    if(idx>=0)S.diaryTags.splice(idx,1);else S.diaryTags.push(tag);
-    t.classList.toggle('on');
+  reset:async()=>{if(await askConfirm('Reset game?','Topic progress and current round reset. Study reports, diary and game history are kept.','Reset game')){
+    update(ref(db,base()),{game:{status:'lobby',round:0},answers:null,sessions:null,proposal:null});closeSheet();S.tab='home'}},
+  leavegroup:async()=>{
+    if(!(await askConfirm('Leave this group?','You will be removed from the player list. Your private diary stays saved for you.','Leave',true)))return;
+    const id=S.roomId,pid=S.me.pid,rest=plist().filter(p=>p.id!==pid),ups={};
+    try{await onDisconnect(ref(db,`rooms/${id}/presence/${pid}`)).cancel()}catch{}
+    if(!rest.length)ups[`rooms/${id}`]=null;
+    else{ups[`rooms/${id}/players/${pid}`]=null;ups[`rooms/${id}/presence/${pid}`]=null;
+      if(isHost())ups[`rooms/${id}/meta/hostId`]=rest[0].id;
+      if(S.game.status==='answering')ups[`rooms/${id}/answers/${akey()}/${pid}`]=null}
+    ups[`userGroups/${uid()}/${id}`]=null;
+    update(ref(db),ups).then(()=>{closeSheet();enter('');toast('You left the group')}).catch(()=>toast('Could not leave. Try again'));
   },
+  /* diary */
+  toggleTag:t=>{const tag=t.dataset.tag,i=S.diaryTags.indexOf(tag);if(i>=0)S.diaryTags.splice(i,1);else S.diaryTags.push(tag);t.classList.toggle('on')},
+  addTag:()=>{const i=document.querySelector('input[name=ctag]');let v=(i?.value||'').trim().replace(/\s+/g,'');if(!v)return;if(v[0]!=='#')v='#'+v;
+    if(!S.customTags.includes(v)&&!QUICK_TAGS.includes(v)){S.customTags.push(v);try{localStorage.setItem('sos:ctags',JSON.stringify(S.customTags))}catch{}}
+    if(!S.diaryTags.includes(v))S.diaryTags.push(v);i.value='';render(true)},
   dfilter:t=>{S.diaryFilter=t.dataset.tag;render()},
-  delDiary:async t=>{
-    const id=t.dataset.id;
-    if(!(await askConfirm('Delete diary entry?','This private entry will be permanently deleted from this device.','Delete',true)))return;
-    saveDiary(getDiary().filter(e=>e.id!==id));
-    toast('Diary entry deleted');
-    render();
-  },
-  begin:()=>{
-    set(ref(db,`${base()}/sessions/r${S.game.round}/${S.me.pid}`),{status:'studying',startedAt:now()})
-      .then(()=>pres(true,'studying'))
-      .catch(()=>toast('Could not start timer'));
-  },
-  report:t=>reportSheet(+t.dataset.r),
-  log:()=>reportSheet(0),
-  acceptSug:t=>{
-    if(!isHost())return;
-    const id=t.dataset.id,sug=S.suggestions[id];if(!sug)return;
-    const current=opts();
-    const exists=current.some(w=>w.trim().toLowerCase()===sug.word.trim().toLowerCase());
-    const nextOpts=[...current];
-    let newIdx=-1;
-    if(!exists){
-      const emptySlot=nextOpts.findIndex(w=>!w.trim());
-      if(emptySlot>=0){nextOpts[emptySlot]=sug.word.trim();newIdx=emptySlot}
-      else{nextOpts.push(sug.word.trim());newIdx=nextOpts.length-1}
-    }
-    const updates={[`suggestions/${id}`]:null,[`config/options`]:nextOpts};
-    if(newIdx>=0&&S.game.status!=='lobby'&&S.game.status!=='finished'){
-      const act=arr(S.game.active);
-      if(!act.includes(newIdx))updates['game/active']=[...act,newIdx];
-    }
-    update(ref(db,base()),updates)
-      .then(()=>toast(`Added “${sug.word}” to options`))
-      .catch(()=>toast('Could not approve suggestion'));
-  },
-  rejectSug:t=>{
-    if(!isHost())return;
-    remove(ref(db,`${base()}/suggestions/${t.dataset.id}`)).catch(()=>toast('Could not remove suggestion'));
-  },
-  reset:async()=>{
-    if(await askConfirm('Reset game to lobby?','All study reports, growth charts, and private diaries are kept.','Reset game')){
-      update(ref(db,base()),{game:{status:'lobby',round:0},answers:null,sessions:null});
-      closeSheet();S.tab='home';
-    }
-  },
-  leave:async()=>{
-    if(await askConfirm('Switch player on this device?','You can rejoin anytime by tapping your name.','Switch player')){
-      pres(false);
-      localStorage.removeItem('sos:id:'+S.roomId);
-      S.me=null;
-      closeSheet();
-    }
-  }
+  dclear:()=>{S.diaryDate='';S.diaryFilter='all';render()},
+  delDiary:async t=>{if(!(await askConfirm('Delete entry?','This entry will be permanently deleted.','Delete',true)))return;
+    remove(ref(db,`userDiary/${uid()}/${S.roomId}/${t.dataset.id}`)).then(()=>toast('Entry deleted')).catch(()=>toast('Could not delete'))},
+  /* plan */
+  pday:t=>{const d=t.dataset.d;if(d==='all')S.planDays=[];else{const n=+d,i=S.planDays.indexOf(n);if(i>=0)S.planDays.splice(i,1);else S.planDays.push(n)}render(true)},
+  delSched:t=>remove(ref(db,`${base()}/schedule/${t.dataset.id}`)).catch(()=>toast('Could not delete')),
+  schedwa:t=>{const s=S.schedule[t.dataset.id];if(s)waShare(waText(s))},
+  ics:t=>{const s=S.schedule[t.dataset.id];if(s)icsFor(s)},
+  owa:()=>{const l=S.config?.waLink;if(l)window.open(l,'_blank','noopener');else toast('Save your WhatsApp group link first')},
+  swa:()=>waShare(`📚 ${S.room?.name||'Study squad'}: time to study! Open the app and let’s go.`),
+  remwa:()=>S.reminder&&waShare(waText(S.reminder)),remclose:()=>{S.reminder=null;render()},
+  notif:()=>{if('Notification' in window)Notification.requestPermission().then(()=>render(true))}
 };
-
+async function joinAs(code,name,pid){
+  const u=uid();
+  if(pid){const r=await runTransaction(ref(db,`rooms/${code}/players/${pid}/uid`),v=>v==null?u:undefined);if(!r.committed)return toast('That player is already linked to another account')}
+  else{const r=await runTransaction(ref(db,`rooms/${code}/players`),p=>{p=p||{};if(Object.keys(p).length>=3)return;
+      if(Object.values(p).some(x=>(x.name||'').trim().toLowerCase()===name.toLowerCase()))return;
+      p[u]={name,joinedAt:Date.now(),uid:u};return p});
+    if(!r.committed)return toast('Group is full (3 players) or that name is already taken');pid=u}
+  await set(ref(db,`userGroups/${u}/${code}`),pid);
+  closeSheet();enter(code);S.tab='home';
+}
 const FORMS={
+  guest:async f=>{const n=(new FormData(f).get('gname')||'').trim();if(!n)return;localStorage.setItem('sos:name',n);S.loginErr='';
+    try{await signInAnonymously(auth)}catch(e){S.loginErr=authMsg(e);render()}},
   create:async f=>{
-    if(S.busy.create)return;
-    const d=Object.fromEntries(new FormData(f)),id=rid(14),pid=rid(8),t=Date.now();
-    const rname=(d.room||'').trim(),mname=(d.me||'').trim();
-    if(!rname||!mname)return;
-    S.busy.create=true;
+    if(S.busy.create)return;const d=Object.fromEntries(new FormData(f)),id=rid(8),pid=uid(),t=Date.now(),rn=(d.room||'').trim(),mn=(d.me||'').trim();
+    if(!rn||!mn)return;S.busy.create=true;
     try{
-      await set(ref(db,'rooms/'+id),{
-        meta:{name:rname,hostId:pid,createdAt:t},
-        players:{[pid]:{name:mname,joinedAt:t}},
-        config:{options:DEF,studyMinutes:60,removeMatched:true},
-        game:{status:'lobby',round:0}
-      });
-      localStorage.setItem('sos:name',mname);
-      localStorage.setItem('sos:id:'+id,JSON.stringify({pid,name:mname}));
-      location.hash=id;
-    }catch{toast('Could not create room. Check connection.')}
-    finally{S.busy.create=false}
+      await set(ref(db,'rooms/'+id),{meta:{name:rn,hostId:pid,createdAt:t},players:{[pid]:{name:mn,joinedAt:t,uid:pid}},config:{studyMinutes:60},game:{status:'lobby',round:0}});
+      await set(ref(db,`userGroups/${pid}/${id}`),pid);
+      localStorage.setItem('sos:name',mn);closeSheet();enter(id);S.tab='home';
+    }catch{toast('Could not create group. Check connection and rules.')}finally{S.busy.create=false}
   },
-  join:f=>{
-    if(S.busy.join)return;
-    const name=(new FormData(f).get('me')||'').trim(),pid=rid(8);
-    if(!name)return;
+  join:async f=>{
+    const d=Object.fromEntries(new FormData(f)),code=(d.code||'').trim().toLowerCase(),name=(d.me||'').trim();
+    if(!code||!name||S.busy.join)return;
+    if(S.ug[code]){closeSheet();enter(code);return}
     S.busy.join=true;
-    runTransaction(ref(db,base()+'/players'),p=>{
-      p=p||{};
-      const existing=Object.entries(p).find(([,v])=>v.name.trim().toLowerCase()===name.toLowerCase());
-      if(existing)return;
-      p[pid]={name,joinedAt:Date.now()};
-      return p;
-    }).then(r=>{
-      if(r.committed){
-        S.me={pid,name};
-        localStorage.setItem('sos:name',name);
-        saveId();S.presOn=false;after();render();
-      }else{
-        const dup=plist().find(p=>p.name.trim().toLowerCase()===name.toLowerCase());
-        toast(dup?`“${dup.name}” is already in the room — tap their card below to reconnect`:'Could not join room. Try again');
-      }
-    }).catch(()=>toast('Could not join. Try again')).finally(()=>{S.busy.join=false});
+    try{
+      const [m,p]=await Promise.all([get(ref(db,`rooms/${code}/meta`)),get(ref(db,`rooms/${code}/players`))]);
+      if(!m.exists()){toast('No group with that code');return}
+      localStorage.setItem('sos:name',name);
+      const legacy=Object.entries(p.val()||{}).filter(([,v])=>!v.uid).map(([id,v])=>({id,...v}));
+      if(legacy.length){
+        sheet(`<h2>Are you already a player?</h2><p class="mut sm" style="margin:6px 0 14px">Pick your existing player to keep your study history.</p>
+          ${legacy.map(x=>`<button class="opt" style="width:100%;margin-bottom:8px" data-act="claimp" data-code="${esc(code)}" data-pid="${x.id}" data-name="${esc(name)}"><span class="sp">I’m <b>${esc(x.name)}</b></span></button>`).join('')}
+          <button class="btn ghost" data-act="joinnew" data-code="${esc(code)}" data-name="${esc(name)}">I’m new here</button>`);
+      }else await joinAs(code,name,null);
+    }catch{toast('Could not join. Check the code and your connection')}finally{S.busy.join=false}
+  },
+  custom:f=>{
+    const d=Object.fromEntries(new FormData(f)),name=(d.name||'').trim();if(!name)return;
+    const words=(d.words||'').split(/[,\n]/).map(normAns).filter(Boolean).filter((w,i,a)=>a.findIndex(x=>x.toLowerCase()===w.toLowerCase())===i).slice(0,40);
+    doProposal({id:'custom:'+name.toLowerCase().replace(/\s+/g,'-'),label:'✏️ '+name,...(words.length?{custom:words}:{})});closeSheet();
   },
   diary:f=>{
-    const d=Object.fromEntries(new FormData(f));
-    const text=(d.text||'').trim(),win=(d.window||'').trim();
-    if(!text||!win)return;
-    const list=getDiary();
-    list.push({
-      id:rid(8),
-      window:win,
-      mins:Math.max(1,Math.min(720,Math.round(+d.mins||mins()))),
-      text,
-      tags:[...S.diaryTags],
-      ts:Date.now()
-    });
-    saveDiary(list);
-    const ta=f.querySelector('textarea[name=text]');if(ta)ta.value='';
-    toast('Saved privately on this device');
-    render();
+    const d=Object.fromEntries(new FormData(f)),subject=(d.subject||'').trim(),topic=(d.topic||'').trim();
+    if(!subject||!topic)return;
+    const key=push(ref(db,`userDiary/${uid()}/${S.roomId}`)).key,ts=Date.now();
+    set(ref(db,`userDiary/${uid()}/${S.roomId}/${key}`),{subject,topic,mins:Math.max(1,Math.min(720,Math.round(+d.mins||30))),tags:[...S.diaryTags],notes:(d.notes||'').trim(),ts,date:dkey(new Date(ts))})
+      .then(()=>toast('Saved')).catch(()=>toast('Could not save entry'));
+    const t=f.querySelector('[name=topic]'),n=f.querySelector('[name=notes]');if(t)t.value='';if(n)n.value='';
   },
-  suggest:f=>{
-    const inp=f.querySelector('input[name=word]');
-    if(!inp)return;
-    const word=(inp.value||'').trim();
-    if(!word)return;
-    const low=word.toLowerCase();
-    const inOpts=opts().some(o=>o.trim().toLowerCase()===low);
-    const inSugs=arr(S.suggestions).some(s=>s.word.trim().toLowerCase()===low);
-    if(inOpts||inSugs)return toast('That word is already in the list!');
-    inp.value='';
-    const key=push(ref(db,base()+'/suggestions')).key;
-    set(ref(db,`${base()}/suggestions/${key}`),{word,pid:S.me.pid,createdAt:now()})
-      .then(()=>toast('Suggestion sent to room'))
-      .catch(()=>toast('Could not send suggestion'));
+  wa:f=>{const l=(new FormData(f).get('link')||'').trim();
+    if(l&&!/^https:\/\/(chat\.whatsapp\.com|wa\.me|whatsapp\.com)\//i.test(l))return toast('Paste a WhatsApp invite link (https://chat.whatsapp.com/…)');
+    set(ref(db,base()+'/config/waLink'),l||null).then(()=>toast(l?'WhatsApp link saved':'Link removed')).catch(()=>toast('Could not save'))},
+  sched:f=>{
+    const d=Object.fromEntries(new FormData(f));if(!d.time||!(d.title||'').trim())return;
+    const key=push(ref(db,base()+'/schedule')).key;
+    set(ref(db,`${base()}/schedule/${key}`),{title:d.title.trim(),time:d.time,note:(d.note||'').trim(),by:S.me.pid,createdAt:now(),...(S.planDays.length?{days:[...S.planDays].sort()}:{})})
+      .then(()=>{toast('Reminder added');S.planDays=[]}).catch(()=>toast('Could not add reminder'));
   },
   report:f=>{
     if(S.busy.report)return;
-    const d=Object.fromEntries(new FormData(f)),round=+f.dataset.round,key=push(ref(db,base()+'/reports')).key;
-    const up={
-      ['reports/'+key]:{
-        pid:S.me.pid,round:round||null,subject:d.subject.trim(),topic:d.topic.trim(),
-        minutes:Math.round(+d.minutes),accomplished:d.accomplished.trim(),
-        notes:(d.notes||'').trim(),date:dkey(new Date()),createdAt:serverTimestamp()
-      }
-    };
-    if(round){
-      up[`sessions/r${round}/${S.me.pid}`]={
-        status:'completed',
-        startedAt:S.sessions['r'+round]?.[S.me.pid]?.startedAt||null,
-        completedAt:now()
-      };
-    }
+    const d=Object.fromEntries(new FormData(f)),round=+f.dataset.round,key=f.dataset.key,rk=push(ref(db,base()+'/reports')).key;
+    const up={['reports/'+rk]:{pid:S.me.pid,name:pname(S.me.pid),round:round||null,subject:d.subject.trim(),topic:d.topic.trim(),minutes:Math.round(+d.minutes),accomplished:d.accomplished.trim(),notes:(d.notes||'').trim(),date:dkey(new Date()),createdAt:serverTimestamp()}};
+    if(round&&key)up[`sessions/${key}/${S.me.pid}`]={status:'completed',startedAt:S.sessions[key]?.[S.me.pid]?.startedAt||null,completedAt:now()};
     S.busy.report=true;
-    update(ref(db,base()),up)
-      .then(()=>{pres(true,'done');toast('Study report saved');closeSheet()})
-      .catch(()=>toast('Sync failed. Please try saving again'))
-      .finally(()=>{S.busy.report=false});
+    update(ref(db,base()),up).then(()=>{pres(true,'done');toast('Study report saved');closeSheet()}).catch(()=>toast('Sync failed. Please try again')).finally(()=>{S.busy.report=false});
   },
   settings:f=>{
     if(!isHost())return closeSheet();
     const d=Object.fromEntries(new FormData(f));
-    const count=Math.max(10,opts().length);
-    const options=Array.from({length:count},(_,i)=>(d['o'+i]||'').trim()).filter((v,i)=>i<10||v!=='');
-    if(options.filter(Boolean).length<2)return toast('Keep at least 2 options');
-    update(ref(db,base()),{
-      'meta/name':d.room.trim()||S.room.name,
-      config:{options,studyMinutes:Math.min(240,Math.max(5,+d.mins||60)),removeMatched:!!d.rm}
-    }).then(()=>{toast('Settings saved');closeSheet()}).catch(()=>toast('Could not save settings'));
+    update(ref(db,base()),{'meta/name':(d.room||'').trim()||S.room.name,'config/studyMinutes':Math.min(240,Math.max(5,+d.mins||60))})
+      .then(()=>{toast('Settings saved');closeSheet()}).catch(()=>toast('Could not save settings'));
   }
 };
-
 document.addEventListener('click',e=>{const t=e.target.closest('[data-act]');if(t)ACT[t.dataset.act]?.(t)});
-document.addEventListener('submit',e=>{e.preventDefault();FORMS[e.target.dataset.form]?.(e.target)});
+document.addEventListener('submit',e=>{e.preventDefault();document.activeElement?.blur?.();FORMS[e.target.dataset.form]?.(e.target)});
+document.addEventListener('change',e=>{const t=e.target;if(t.dataset?.change==='ddate'){S.diaryDate=t.value;t.blur();render()}});
+if(!db||!authOk||!auth)render();
 
-enter(location.hash.slice(1));
-if(!db)render();
 </script>
 </body>
 </html>
